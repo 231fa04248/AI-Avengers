@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CivicResolve AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe',
+              500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
+              800: '#1e40af', 900: '#1e3a8a'
+            }
+          },
+          boxShadow: {
+            'soft': '0 4px 20px -2px rgba(0,0,0,0.06)',
+            'soft-lg': '0 10px 40px -10px rgba(0,0,0,0.1)',
+            'glow': '0 0 20px rgba(37, 99, 235, 0.15)'
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.5s ease-out',
+            'slide-up': 'slideUp 0.5s ease-out',
+            'pulse-soft': 'pulseSoft 2s infinite'
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: 0 }, '100%': { opacity: 1 } },
+            slideUp: { '0%': { opacity: 0, transform: 'translateY(20px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+            pulseSoft: { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.7 } }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .animate-spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .mic-pulse { animation: pulse 1.4s infinite; }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+      70% { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
+    .card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -15px rgba(0,0,0,0.12); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const API_BASE = window.CIVICRESOLVE_API_URL || '/api';
+
+    const apiRequest = async (path, options = {}) => {
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      if (window.civicResolveToken) headers.Authorization = `Bearer ${window.civicResolveToken}`;
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'The server request failed.');
+      return payload;
+    };
+
+    // ========== TRANSLATIONS (same as before - kept short for space) ==========
+    const translations = {
+      en: {
+        appName: "CivicResolve AI", whoAreYou: "Who are you logging in as?", citizen: "Citizen", citizenDesc: "Reports problems",
+        official: "Government Official", officialDesc: "Solves problems", admin: "Admin", adminDesc: "Manages and monitors the system",
+        welcome: "Welcome", enterDetails: "Enter your details to continue", changeRole: "Change Role", emailId: "Email ID",
+        mobileNumber: "Mobile Number", emailAddress: "Email Address", continueAs: "Continue as", signingIn: "Signing in...",
+        terms: "By continuing you agree to the Terms of Service & Privacy Policy", demoNote: "Demo: Enter any valid email or 10-digit mobile number",
+        home: "Home", fileComplaint: "File Complaint", trackStatus: "Track Status", trackCases: "Track Cases",
+        officerDashboard: "Officer Dashboard", dashboard: "Dashboard", cityAnalytics: "City Analytics", logout: "Logout",
+        welcomeCitizen: "Welcome, Citizen", welcomeOfficial: "Welcome, Government Official", welcomeAdmin: "Welcome, Admin",
+        citizenSubtitle: "Report civic issues and track their resolution in real time.",
+        officialSubtitle: "Review assigned cases, update status and resolve citizen problems.",
+        adminSubtitle: "Monitor system performance, analytics and overall city operations.",
+        fileAComplaint: "File a Complaint", trackYourCase: "Track Your Case", goToDashboard: "Go to Officer Dashboard", viewAnalytics: "View Analytics",
+        avgResolution: "Avg. Resolution", citizenSatisfaction: "Citizen Satisfaction", departmentsConnected: "Departments Connected", autoClassification: "Auto Classification",
+        howItWorks: "How CivicResolve Works", howItWorksDesc: "An end-to-end agentic platform that turns citizen reports into resolved cases.",
+        smartIntake: "Smart Intake", smartIntakeDesc: "Text, photo & location-based reporting with AI auto-classification",
+        instantRouting: "Instant Routing", instantRoutingDesc: "Automatically routes to the correct department & team",
+        priorityEngine: "Priority Engine", priorityEngineDesc: "Impact + urgency scoring ensures critical issues are handled first",
+        liveTracking: "Live Tracking", liveTrackingDesc: "Transparent status updates and resolution explanations for citizens",
+        recurringInsights: "Recurring Insights", recurringInsightsDesc: "Detects patterns and hotspots across the city",
+        escalationLogic: "Escalation Logic", escalationLogicDesc: "Auto-escalates delayed cases to higher authorities",
+        fileCivicComplaint: "File a Civic Complaint", fileDesc: "Describe the issue. Our AI will classify, prioritize and route it automatically.",
+        category: "Category *", selectCategory: "Select category", describeProblem: "Describe the problem *",
+        describePlaceholder: "E.g. Large pothole on Main Road near City Hospital causing traffic issues...",
+        location: "Location *", locationPlaceholder: "Street, landmark or area", photo: "Photo (optional but recommended)",
+        clickPhoto: "Click to upload or take a photo", howUrgent: "How urgent is this?", low: "Low", medium: "Medium", high: "High",
+        yourName: "Your Name", phoneWhatsapp: "Phone / WhatsApp", submitComplaint: "Submit Complaint", analyzing: "AI is analyzing your complaint...",
+        successTitle: "Complaint Registered Successfully", yourCaseId: "Your case ID is", aiSummary: "AI Analysis Summary",
+        department: "Department", priority: "Priority", impactScore: "Impact Score", expectedResolution: "Expected Resolution",
+        similarComplaints: "similar complaint(s) already exist in this area. Your report has been linked for faster resolution.",
+        fileAnother: "File another complaint", trackTitle: "Track Your Complaint", trackDesc: "Enter your Case ID to see live status and resolution progress.",
+        track: "Track", searching: "Searching...", progressTimeline: "Progress Timeline",
+        officerDashboardTitle: "Officer Dashboard", liveCases: "Live cases across departments", all: "All", critical: "Critical",
+        openCases: "Open Cases", escalated: "Escalated", resolvedToday: "Resolved Today",
+        caseId: "Case ID", categoryCol: "Category", locationCol: "Location", priorityCol: "Priority", statusCol: "Status", ageCol: "Age", actionCol: "Action", view: "View",
+        cityAnalyticsTitle: "City Analytics", recurringProblems: "Recurring problems & hotspot intelligence",
+        complaintsByCategory: "Complaints by Category (Last 30 days)", topHotspots: "Top Hotspots",
+        recurringInsightsTitle: "Recurring Problem Insights", recurringDesc: "AI has detected clusters of similar complaints. These locations may require permanent infrastructure fixes rather than repeated temporary repairs.",
+        footer: "© 2026 CivicResolve. Built for transparent, citizen-first governance.",
+        listening: "Listening... Speak now", micUnsupported: "Speech recognition not supported in this browser"
+      },
+      hi: {
+        appName: "CivicResolve AI", whoAreYou: "आप किस रूप में लॉगिन कर रहे हैं?", citizen: "नागरिक", citizenDesc: "समस्याओं की रिपोर्ट करें",
+        official: "सरकारी अधिकारी", officialDesc: "समस्याओं का समाधान करें", admin: "एडमिन", adminDesc: "सिस्टम का प्रबंधन और निगरानी करें",
+        welcome: "स्वागत है", enterDetails: "जारी रखने के लिए अपना विवरण दर्ज करें", changeRole: "भूमिका बदलें", emailId: "ईमेल आईडी",
+        mobileNumber: "मोबाइल नंबर", emailAddress: "ईमेल पता", continueAs: "के रूप में जारी रखें", signingIn: "साइन इन हो रहा है...",
+        terms: "जारी रखकर आप सेवा की शर्तों और गोपनीयता नीति से सहमत होते हैं", demoNote: "डेमो: कोई भी वैध ईमेल या 10 अंकों का मोबाइल नंबर दर्ज करें",
+        home: "होम", fileComplaint: "शिकायत दर्ज करें", trackStatus: "स्थिति ट्रैक करें", trackCases: "केस ट्रैक करें",
+        officerDashboard: "अधिकारी डैशबोर्ड", dashboard: "डैशबोर्ड", cityAnalytics: "शहर विश्लेषण", logout: "लॉगआउट",
+        welcomeCitizen: "स्वागत है, नागरिक", welcomeOfficial: "स्वागत है, सरकारी अधिकारी", welcomeAdmin: "स्वागत है, एडमिन",
+        citizenSubtitle: "नागरिक मुद्दों की रिपोर्ट करें और उनके समाधान को रियल-टाइम में ट्रैक करें।",
+        officialSubtitle: "आवंटित मामलों की समीक्षा करें, स्थिति अपडेट करें और नागरिक समस्याओं का समाधान करें।",
+        adminSubtitle: "सिस्टम प्रदर्शन, विश्लेषण और समग्र शहर संचालन की निगरानी करें।",
+        fileAComplaint: "शिकायत दर्ज करें", trackYourCase: "अपना केस ट्रैक करें", goToDashboard: "अधिकारी डैशबोर्ड पर जाएं", viewAnalytics: "विश्लेषण देखें",
+        avgResolution: "औसत समाधान", citizenSatisfaction: "नागरिक संतुष्टि", departmentsConnected: "जुड़े विभाग", autoClassification: "ऑटो वर्गीकरण",
+        howItWorks: "CivicResolve कैसे काम करता है", howItWorksDesc: "एक एंड-टू-एंड एजेंटिक प्लेटफॉर्म जो नागरिक रिपोर्ट को हल किए गए मामलों में बदलता है।",
+        smartIntake: "स्मार्ट इनटेक", smartIntakeDesc: "AI ऑटो-वर्गीकरण के साथ टेक्स्ट, फोटो और लोकेशन-आधारित रिपोर्टिंग",
+        instantRouting: "तत्काल रूटिंग", instantRoutingDesc: "सही विभाग और टीम को स्वचालित रूप से रूट करता है",
+        priorityEngine: "प्राथमिकता इंजन", priorityEngineDesc: "प्रभाव + तात्कालिकता स्कोरिंग सुनिश्चित करता है कि महत्वपूर्ण मुद्दे पहले संभाले जाएं",
+        liveTracking: "लाइव ट्रैकिंग", liveTrackingDesc: "नागरिकों के लिए पारदर्शी स्थिति अपडेट और समाधान स्पष्टीकरण",
+        recurringInsights: "आवर्ती अंतर्दृष्टि", recurringInsightsDesc: "शहर भर में पैटर्न और हॉटस्पॉट का पता लगाता है",
+        escalationLogic: "एस्केलेशन लॉजिक", escalationLogicDesc: "विलंबित मामलों को उच्च अधिकारियों तक स्वचालित रूप से बढ़ाता है",
+        fileCivicComplaint: "नागरिक शिकायत दर्ज करें", fileDesc: "समस्या का वर्णन करें। हमारा AI इसे स्वचालित रूप से वर्गीकृत, प्राथमिकता देगा और रूट करेगा।",
+        category: "श्रेणी *", selectCategory: "श्रेणी चुनें", describeProblem: "समस्या का वर्णन करें *",
+        describePlaceholder: "उदा. सिटी हॉस्पिटल के पास मेन रोड पर बड़ा गड्ढा जिससे ट्रैफिक की समस्या हो रही है...",
+        location: "स्थान *", locationPlaceholder: "सड़क, लैंडमार्क या क्षेत्र", photo: "फोटो (वैकल्पिक लेकिन अनुशंसित)",
+        clickPhoto: "अपलोड करने या फोटो लेने के लिए क्लिक करें", howUrgent: "यह कितना जरूरी है?", low: "कम", medium: "मध्यम", high: "उच्च",
+        yourName: "आपका नाम", phoneWhatsapp: "फोन / व्हाट्सएप", submitComplaint: "शिकायत जमा करें", analyzing: "AI आपकी शिकायत का विश्लेषण कर रहा है...",
+        successTitle: "शिकायत सफलतापूर्वक पंजीकृत", yourCaseId: "आपका केस आईडी है", aiSummary: "AI विश्लेषण सारांश",
+        department: "विभाग", priority: "प्राथमिकता", impactScore: "प्रभाव स्कोर", expectedResolution: "अपेक्षित समाधान",
+        similarComplaints: "समान शिकायत(ें) इस क्षेत्र में पहले से मौजूद हैं। तेज समाधान के लिए आपकी रिपोर्ट लिंक कर दी गई है।",
+        fileAnother: "एक और शिकायत दर्ज करें", trackTitle: "अपनी शिकायत ट्रैक करें", trackDesc: "लाइव स्थिति और समाधान प्रगति देखने के लिए अपना केस आईडी दर्ज करें।",
+        track: "ट्रैक", searching: "खोज रहा है...", progressTimeline: "प्रगति समयरेखा",
+        officerDashboardTitle: "अधिकारी डैशबोर्ड", liveCases: "विभागों में लाइव मामले", all: "सभी", critical: "गंभीर",
+        openCases: "खुले मामले", escalated: "एस्केलेटेड", resolvedToday: "आज हल किए गए",
+        caseId: "केस आईडी", categoryCol: "श्रेणी", locationCol: "स्थान", priorityCol: "प्राथमिकता", statusCol: "स्थिति", ageCol: "आयु", actionCol: "कार्रवाई", view: "देखें",
+        cityAnalyticsTitle: "शहर विश्लेषण", recurringProblems: "आवर्ती समस्याएं और हॉटस्पॉट इंटेलिजेंस",
+        complaintsByCategory: "श्रेणी के अनुसार शिकायतें (पिछले 30 दिन)", topHotspots: "शीर्ष हॉटस्पॉट",
+        recurringInsightsTitle: "आवर्ती समस्या अंतर्दृष्टि", recurringDesc: "AI ने समान शिकायतों के समूहों का पता लगाया है। इन स्थानों पर बार-बार अस्थायी मरम्मत के बजाय स्थायी बुनियादी ढांचे की मरम्मत की आवश्यकता हो सकती है।",
+        footer: "© 2026 CivicResolve. पारदर्शी, नागरिक-प्रथम शासन के लिए बनाया गया।",
+        listening: "सुन रहा है... अब बोलें", micUnsupported: "इस ब्राउज़र में स्पीच रिकग्निशन समर्थित नहीं है"
+      },
+      te: {
+        appName: "CivicResolve AI", whoAreYou: "మీరు ఎలా లాగిన్ అవుతున్నారు?", citizen: "పౌరుడు", citizenDesc: "సమస్యలను నివేదించండి",
+        official: "ప్రభుత్వ అధికారి", officialDesc: "సమస్యలను పరిష్కరించండి", admin: "అడ్మిన్", adminDesc: "సిస్టమ్‌ను నిర్వహించి పర్యవేక్షిస్తుంది",
+        welcome: "స్వాగతం", enterDetails: "కొనసాగించడానికి మీ వివరాలను నమోదు చేయండి", changeRole: "పాత్రను మార్చండి", emailId: "ఇమెయిల్ ఐడి",
+        mobileNumber: "మొబైల్ నంబర్", emailAddress: "ఇమెయిల్ చిరునామా", continueAs: "గా కొనసాగించండి", signingIn: "సైన్ ఇన్ అవుతోంది...",
+        terms: "కొనసాగించడం ద్వారా మీరు సేవా నిబంధనలు & గోప్యతా విధానానికి అంగీకరిస్తున్నారు", demoNote: "డెమో: ఏదైనా చెల్లుబాటు అయ్యే ఇమెయిల్ లేదా 10 అంకెల మొబైల్ నంబర్ నమోదు చేయండి",
+        home: "హోమ్", fileComplaint: "ఫిర్యాదు నమోదు చేయండి", trackStatus: "స్థితిని ట్రాక్ చేయండి", trackCases: "కేసులను ట్రాక్ చేయండి",
+        officerDashboard: "అధికారి డాష్‌బోర్డ్", dashboard: "డాష్‌బోర్డ్", cityAnalytics: "నగర విశ్లేషణ", logout: "లాగౌట్",
+        welcomeCitizen: "స్వాగతం, పౌరుడు", welcomeOfficial: "స్వాగతం, ప్రభుత్వ అధికారి", welcomeAdmin: "స్వాగతం, అడ్మిన్",
+        citizenSubtitle: "పౌర సమస్యలను నివేదించండి మరియు వాటి పరిష్కారాన్ని రియల్ టైమ్‌లో ట్రాక్ చేయండి.",
+        officialSubtitle: "కేటాయించిన కేసులను సమీక్షించండి, స్థితిని అప్‌డేట్ చేయండి మరియు పౌర సమస్యలను పరిష్కరించండి.",
+        adminSubtitle: "సిస్టమ్ పనితీరు, విశ్లేషణ మరియు మొత్తం నగర కార్యకలాపాలను పర్యవేక్షించండి.",
+        fileAComplaint: "ఫిర్యాదు నమోదు చేయండి", trackYourCase: "మీ కేసును ట్రాక్ చేయండి", goToDashboard: "అధికారి డాష్‌బోర్డ్‌కు వెళ్లండి", viewAnalytics: "విశ్లేషణ చూడండి",
+        avgResolution: "సగటు పరిష్కారం", citizenSatisfaction: "పౌర సంతృప్తి", departmentsConnected: "కనెక్ట్ అయిన విభాగాలు", autoClassification: "ఆటో వర్గీకరణ",
+        howItWorks: "CivicResolve ఎలా పనిచేస్తుంది", howItWorksDesc: "పౌర నివేదికలను పరిష్కరించిన కేసులుగా మార్చే ఎండ్-టు-ఎండ్ ఏజెంటిక్ ప్లాట్‌ఫారమ్.",
+        smartIntake: "స్మార్ట్ ఇన్‌టేక్", smartIntakeDesc: "AI ఆటో-వర్గీకరణతో టెక్స్ట్, ఫోటో & లొకేషన్ ఆధారిత రిపోర్టింగ్",
+        instantRouting: "తక్షణ రూటింగ్", instantRoutingDesc: "సరైన విభాగం & టీమ్‌కు స్వయంచాలకంగా రూట్ చేస్తుంది",
+        priorityEngine: "ప్రాధాన్యత ఇంజిన్", priorityEngineDesc: "ప్రభావం + అత్యవసర స్కోరింగ్ క్లిష్టమైన సమస్యలు మొదట పరిష్కరించబడేలా చూస్తుంది",
+        liveTracking: "లైవ్ ట్రాకింగ్", liveTrackingDesc: "పౌరులకు పారదర్శక స్థితి నవీకరణలు మరియు పరిష్కార వివరణలు",
+        recurringInsights: "పునరావృత అంతర్దృష్టులు", recurringInsightsDesc: "నగరం అంతటా నమూనాలు మరియు హాట్‌స్పాట్‌లను గుర్తిస్తుంది",
+        escalationLogic: "ఎస్కలేషన్ లాజిక్", escalationLogicDesc: "ఆలస్యమైన కేసులను ఉన్నత అధికారులకు స్వయంచాలకంగా ఎస్కలేట్ చేస్తుంది",
+        fileCivicComplaint: "పౌర ఫిర్యాదు నమోదు చేయండి", fileDesc: "సమస్యను వివరించండి. మా AI దానిని స్వయంచాలకంగా వర్గీకరించి, ప్రాధాన్యత ఇచ్చి రూట్ చేస్తుంది.",
+        category: "వర్గం *", selectCategory: "వర్గాన్ని ఎంచుకోండి", describeProblem: "సమస్యను వివరించండి *",
+        describePlaceholder: "ఉదా. సిటీ హాస్పిటల్ దగ్గర మెయిన్ రోడ్‌పై పెద్ద గుంత, ట్రాఫిక్ సమస్యలు కలిగిస్తోంది...",
+        location: "స్థానం *", locationPlaceholder: "వీధి, ల్యాండ్‌మార్క్ లేదా ప్రాంతం", photo: "ఫోటో (ఐచ్ఛికం కానీ సిఫార్సు చేయబడింది)",
+        clickPhoto: "అప్‌లోడ్ చేయడానికి లేదా ఫోటో తీయడానికి క్లిక్ చేయండి", howUrgent: "ఇది ఎంత అత్యవసరం?", low: "తక్కువ", medium: "మధ్యస్థం", high: "ఎక్కువ",
+        yourName: "మీ పేరు", phoneWhatsapp: "ఫోన్ / వాట్సాప్", submitComplaint: "ఫిర్యాదు సమర్పించండి", analyzing: "AI మీ ఫిర్యాదును విశ్లేషిస్తోంది...",
+        successTitle: "ఫిర్యాదు విజయవంతంగా నమోదు చేయబడింది", yourCaseId: "మీ కేస్ ఐడి", aiSummary: "AI విశ్లేషణ సారాంశం",
+        department: "విభాగం", priority: "ప్రాధాన్యత", impactScore: "ప్రభావ స్కోర్", expectedResolution: "అంచనా పరిష్కారం",
+        similarComplaints: "ఇలాంటి ఫిర్యాదు(లు) ఇప్పటికే ఈ ప్రాంతంలో ఉన్నాయి. వేగవంతమైన పరిష్కారం కోసం మీ నివేదిక లింక్ చేయబడింది.",
+        fileAnother: "మరొక ఫిర్యాదు నమోదు చేయండి", trackTitle: "మీ ఫిర్యాదును ట్రాక్ చేయండి", trackDesc: "లైవ్ స్థితి మరియు పరిష్కార పురోగతిని చూడటానికి మీ కేస్ ఐడిని నమోదు చేయండి.",
+        track: "ట్రాక్", searching: "వెతుకుతోంది...", progressTimeline: "పురోగతి టైమ్‌లైన్",
+        officerDashboardTitle: "అధికారి డాష్‌బోర్డ్", liveCases: "విభాగాలలో లైవ్ కేసులు", all: "అన్నీ", critical: "క్లిష్టమైన",
+        openCases: "ఓపెన్ కేసులు", escalated: "ఎస్కలేటెడ్", resolvedToday: "నేడు పరిష్కరించబడినవి",
+        caseId: "కేస్ ఐడి", categoryCol: "వర్గం", locationCol: "స్థానం", priorityCol: "ప్రాధాన్యత", statusCol: "స్థితి", ageCol: "వయస్సు", actionCol: "చర్య", view: "చూడండి",
+        cityAnalyticsTitle: "నగర విశ్లేషణ", recurringProblems: "పునరావృత సమస్యలు & హాట్‌స్పాట్ ఇంటెలిజెన్స్",
+        complaintsByCategory: "వర్గం ప్రకారం ఫిర్యాదులు (గత 30 రోజులు)", topHotspots: "టాప్ హాట్‌స్పాట్‌లు",
+        recurringInsightsTitle: "పునరావృత సమస్య అంతర్దృష్టులు", recurringDesc: "AI సారూప్య ఫిర్యాదుల క్లస్టర్‌లను గుర్తించింది. ఈ ప్రదేశాలకు తాత్కాలిక మరమ్మతులకు బదులుగా శాశ్వత మౌలిక సదుపాయాల పరిష్కారాలు అవసరం కావచ్చు.",
+        footer: "© 2026 CivicResolve. పారదర్శక, పౌర-మొదటి పాలన కోసం నిర్మించబడింది.",
+        listening: "వినిపిస్తోంది... ఇప్పుడు మాట్లాడండి", micUnsupported: "ఈ బ్రౌజర్‌లో స్పీచ్ రికగ్నిషన్ మద్దతు లేదు"
+      }
+    };
+
+    // ========== ICON ==========
+    const Icon = ({ name, size = 20, className = "" }) => {
+      useEffect(() => { if (window.lucide) lucide.createIcons(); });
+      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+    };
+
+    // ========== LANGUAGE SWITCHER ==========
+    function LanguageSwitcher({ lang, setLang, dark = false }) {
+      return (
+        <div className={`flex items-center rounded-full p-1 text-sm font-medium ${dark ? 'bg-white/15 backdrop-blur' : 'bg-slate-100'}`}>
+          {['en', 'hi', 'te'].map(l => (
+            <button key={l} onClick={() => setLang(l)}
+              className={`px-3 py-1.5 rounded-full transition-all duration-200 ${
+                lang === l 
+                  ? (dark ? 'bg-white text-primary-700 shadow-sm' : 'bg-white text-primary-700 shadow-sm') 
+                  : (dark ? 'text-white/70 hover:text-white' : 'text-slate-500 hover:text-slate-800')
+              }`}>
+              {l === 'en' ? 'EN' : l === 'hi' ? 'हिं' : 'తె'}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ========== LOGIN ==========
+    function Login({ onLogin, onSignup, lang, setLang }) {
+      const t = translations[lang];
+      const [role, setRole] = useState(null);
+      const [mode, setMode] = useState('email');
+      const [value, setValue] = useState('');
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [loading, setLoading] = useState(false);
+
+      const roles = [
+        { id: 'citizen', emoji: '👤', title: t.citizen, desc: t.citizenDesc, color: 'from-blue-500 to-blue-600' },
+        { id: 'official', emoji: '🏛️', title: t.official, desc: t.officialDesc, color: 'from-emerald-500 to-teal-600' },
+        { id: 'admin', emoji: '⚙️', title: t.admin, desc: t.adminDesc, color: 'from-violet-500 to-purple-600' }
+      ];
+
+      const validate = () => {
+        if (!value.trim()) {
+          setError(lang === 'te' ? 'దయచేసి మీ ఇమెయిల్ లేదా మొబైల్ నంబర్ నమోదు చేయండి' : lang === 'hi' ? 'कृपया अपना ईमेल या मोबाइल नंबर दर्ज करें' : 'Please enter your email or mobile number');
+          return false;
+        }
+        if (!password) {
+          setError('Please enter your password.');
+          return false;
+        }
+        if (mode === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          setError(lang === 'te' ? 'దయచేసి చెల్లుబాటు అయ్యే ఇమెయిల్ చిరునామా నమోదు చేయండి' : lang === 'hi' ? 'कृपया एक वैध ईमेल पता दर्ज करें' : 'Please enter a valid email address');
+          return false;
+        }
+        if (mode === 'mobile' && !/^[6-9]\d{9}$/.test(value.replace(/\s+/g, ''))) {
+          setError(lang === 'te' ? 'దయచేసి చెల్లుబాటు అయ్యే 10 అంకెల మొబైల్ నంబర్ నమోదు చేయండి' : lang === 'hi' ? 'कृपया एक वैध 10 अंकों का मोबाइल नंबर दर्ज करें' : 'Please enter a valid 10-digit mobile number');
+          return false;
+        }
+        setError('');
+        return true;
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!validate()) return;
+        setLoading(true);
+        try {
+          const response = await apiRequest('/auth/signin', {
+            method: 'POST',
+            body: JSON.stringify({ identifier: value.trim(), type: mode, password, requestedRole: role }),
+          });
+          onLogin({ ...response.user, authToken: response.token });
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (!role) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-primary-900 to-primary-800 px-4 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary-600/20 via-transparent to-transparent"></div>
+            <div className="absolute top-6 right-6 z-10"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+            
+            <div className="w-full max-w-3xl relative z-10 animate-fade-in">
+              <div className="text-center mb-12">
+                <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-primary-500/20 mb-6">
+                  <span className="text-primary-700 font-extrabold text-4xl">C</span>
+                </div>
+                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{t.appName}</h1>
+                <p className="mt-3 text-primary-200 text-lg">{t.whoAreYou}</p>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-5">
+                {roles.map((r, i) => (
+                  <button key={r.id} onClick={() => setRole(r.id)}
+                    className="group relative bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-7 text-left hover:bg-white/20 hover:border-white/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${r.color} flex items-center justify-center text-2xl mb-5 shadow-lg`}>
+                      {r.emoji}
+                    </div>
+                    <h3 className="font-semibold text-white text-lg">{r.title}</h3>
+                    <p className="text-sm text-primary-200 mt-1.5 leading-relaxed">{r.desc}</p>
+                    <div className="absolute top-5 right-5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Icon name="arrow-right" size={18} className="text-white" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const currentRole = roles.find(r => r.id === role);
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-primary-900 to-primary-800 px-4 relative">
+          <div className="absolute top-6 right-6 z-10"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+          
+          <div className="w-full max-w-md relative z-10 animate-slide-up">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-xl mb-4">
+                <span className="text-primary-700 font-extrabold text-3xl">C</span>
+              </div>
+              <h1 className="text-2xl font-bold text-white">{t.appName}</h1>
+              <div className="mt-3 inline-flex items-center gap-2 bg-white/15 backdrop-blur text-white px-4 py-1.5 rounded-full text-sm font-medium">
+                <span>{currentRole.emoji}</span>
+                <span>{currentRole.title}</span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-2xl p-8">
+              <div className="flex items-center justify-between mb-7">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">{t.welcome}</h2>
+                  <p className="text-slate-500 text-sm mt-1">{t.enterDetails}</p>
+                </div>
+                <button onClick={() => { setRole(null); setMode('email'); setValue(''); setError(''); }}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium hover:underline">
+                  {t.changeRole}
+                </button>
+              </div>
+
+              <div className="flex bg-slate-100 rounded-xl p-1 mb-6">
+                <button type="button" onClick={() => { setMode('email'); setValue(''); setPassword(''); setError(''); }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${mode === 'email' ? 'bg-white shadow text-primary-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                  {t.emailId}
+                </button>
+                {role !== 'admin' && <button type="button" onClick={() => { setMode('mobile'); setValue(''); setPassword(''); setError(''); }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${mode === 'mobile' ? 'bg-white shadow text-primary-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                  {t.mobileNumber}
+                </button>}
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    {mode === 'email' ? t.emailAddress : t.mobileNumber}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                      <Icon name={mode === 'email' ? 'mail' : 'smartphone'} size={18} />
+                    </span>
+                    <input
+                      type={mode === 'email' ? 'email' : 'tel'}
+                      value={value}
+                      onChange={e => setValue(e.target.value)}
+                      placeholder={mode === 'email' ? 'you@example.com' : '9876543210'}
+                      className="w-full rounded-xl border border-slate-200 pl-11 pr-4 py-3.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all bg-slate-50 focus:bg-white"
+                      autoFocus
+                    />
+                  </div>
+                  {error && <p className="mt-2 text-sm text-red-600 flex items-center gap-1.5"><Icon name="alert-circle" size={14} /> {error}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="lock" size={18} /></span>
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password"
+                      className="w-full rounded-xl border border-slate-200 pl-11 pr-4 py-3.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all bg-slate-50 focus:bg-white" />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 disabled:opacity-70">
+                  {loading ? (<><Icon name="loader-2" size={20} className="animate-spin" /> {t.signingIn}</>) : (<><Icon name="log-in" size={18} /> {t.continueAs} {currentRole.title}</>)}
+                </button>
+              </form>
+              <p className="mt-6 text-center text-xs text-slate-400">{t.terms}</p>
+              {role !== 'admin' && <button type="button" onClick={onSignup} className="mt-4 w-full text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline">
+                New here? Create an account
+              </button>}
+            </div>
+            <p className="mt-6 text-center text-primary-200/80 text-sm">{t.demoNote}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ========== SIGNUP ==========
+    function Signup({ onBack, lang, setLang }) {
+      const [form, setForm] = useState({ name: '', email: '', phone: '', location: '', latitude: null, longitude: null, password: '', confirmPassword: '', role: 'citizen' });
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+      const [success, setSuccess] = useState(false);
+      const [pendingApproval, setPendingApproval] = useState(false);
+      const [otpStep, setOtpStep] = useState(false);
+      const [otp, setOtp] = useState('');
+      const [otpLoading, setOtpLoading] = useState(false);
+      const [otpSentMessage, setOtpSentMessage] = useState('');
+
+      const handleSubmit = async (event) => {
+        event.preventDefault();
+        setError('');
+        setOtpSentMessage('');
+        if (form.password !== form.confirmPassword) {
+          setError('Passwords do not match.');
+          return;
+        }
+        if (!form.location.trim()) {
+          setError('Please enter your location or choose your current location.');
+          return;
+        }
+        setLoading(true);
+        try {
+          const response = await apiRequest('/auth/signup/request-otp', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: form.name,
+              email: form.email,
+              phone: form.phone,
+              location: form.location,
+              coordinates: form.latitude !== null && form.longitude !== null ? { latitude: form.latitude, longitude: form.longitude } : null,
+              password: form.password,
+              role: form.role,
+            }),
+          });
+          setOtpStep(true);
+          setOtp('');
+          setOtpSentMessage(response.message || `OTP sent successfully to ${form.email}.`);
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleVerifyOtp = async (event) => {
+        event.preventDefault();
+        setError('');
+        setOtpLoading(true);
+        try {
+          const response = await apiRequest('/auth/signup/verify-otp', {
+            method: 'POST',
+            body: JSON.stringify({ email: form.email, otp }),
+          });
+          setPendingApproval(Boolean(response.pendingApproval));
+          setSuccess(true);
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setOtpLoading(false);
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-primary-900 to-primary-800 px-4 py-8 relative">
+          <div className="absolute top-6 right-6 z-10"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+          <div className="w-full max-w-md relative z-10 animate-slide-up">
+            <div className="text-center mb-7">
+              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-xl mb-4">
+                <span className="text-primary-700 font-extrabold text-3xl">C</span>
+              </div>
+              <h1 className="text-2xl font-bold text-white">Create your account</h1>
+              <p className="mt-2 text-primary-200">Join CivicResolve and track your civic reports.</p>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-2xl p-7 sm:p-8">
+              {success ? (
+                <div className="text-center py-5">
+                  <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <Icon name="check-circle-2" size={34} className="text-emerald-500" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">{pendingApproval ? 'Request sent for approval' : 'Account created'}</h2>
+                  <p className="mt-2 text-sm text-slate-500">{pendingApproval ? 'Your email is verified. An admin must approve your government-official account before you can sign in.' : 'You can now continue from the login page.'}</p>
+                  <button type="button" onClick={onBack} className="mt-6 w-full bg-primary-600 text-white font-semibold py-3.5 rounded-xl hover:bg-primary-700 transition-colors">
+                    Back to login
+                  </button>
+                </div>
+              ) : otpStep ? (
+                <form onSubmit={handleVerifyOtp} className="space-y-5">
+                  <div className="text-center">
+                    <h2 className="text-xl font-bold text-slate-900">Verify your email</h2>
+                    <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-sm text-emerald-800">
+                      <div className="flex items-start gap-2">
+                        <Icon name="check-circle-2" size={18} className="mt-0.5 shrink-0 text-emerald-600" />
+                        <div>
+                          <strong>{otpSentMessage || 'OTP sent successfully.'}</strong>
+                          <p className="mt-1 text-xs text-emerald-700">Please check {form.email}, including Spam or Promotions.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Email OTP</label>
+                    <input required autoFocus inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="Enter 6-digit OTP" className="w-full text-center tracking-[0.4em] rounded-xl border border-slate-200 px-4 py-3.5 text-lg focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
+                  </div>
+                  {error && <p className="text-sm text-red-600 flex items-center gap-1.5"><Icon name="alert-circle" size={14} /> {error}</p>}
+                  <button type="submit" disabled={otpLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg disabled:opacity-70">
+                    {otpLoading ? (<><Icon name="loader-2" size={20} className="animate-spin" /> Verifying...</>) : 'Verify OTP and create account'}
+                  </button>
+                  <button type="button" onClick={() => { setOtpStep(false); setOtp(''); setError(''); }} className="w-full text-sm font-semibold text-slate-500 hover:text-primary-700">
+                    Edit signup details
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Full name</label>
+                    <input required type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Email address</label>
+                    <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Phone number *</label>
+                    <input required type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Location</label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input required type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value, latitude: null, longitude: null })}
+                        placeholder="Area, city or landmark"
+                        className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
+                      <button type="button" onClick={() => {
+                        if (!navigator.geolocation) { setError('Location is not supported by this browser.'); return; }
+                        navigator.geolocation.getCurrentPosition(
+                          position => setForm(prev => ({ ...prev, location: `Current location (${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)})`, latitude: position.coords.latitude, longitude: position.coords.longitude })),
+                          () => setError('Unable to access your current location. Please enter it manually.'),
+                        );
+                      }} className="shrink-0 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-700 hover:bg-primary-100">
+                        Use current location
+                      </button>
+                    </div>
+                    {(form.latitude !== null && form.longitude !== null) && <p className="mt-1.5 text-xs text-emerald-600">Current location selected.</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Account type</label>
+                    <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white">
+                      <option value="citizen">Citizen</option>
+                      <option value="official">Government Official</option>
+                    </select>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                      <input required minLength="8" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Confirm password</label>
+                      <input required minLength="8" type="password" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
+                    </div>
+                  </div>
+                  {error && <p className="text-sm text-red-600 flex items-center gap-1.5"><Icon name="alert-circle" size={14} /> {error}</p>}
+                  <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg disabled:opacity-70">
+                    {loading ? (<><Icon name="loader-2" size={20} className="animate-spin" /> Creating account...</>) : 'Create account'}
+                  </button>
+                  <button type="button" onClick={onBack} className="w-full text-sm font-semibold text-slate-500 hover:text-primary-700">
+                    Already have an account? Log in
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========== NAVBAR ==========
+    function Navbar({ page, setPage, user, onLogout, lang, setLang }) {
+      const t = translations[lang];
+      const [open, setOpen] = useState(false);
+
+      const getLinks = () => {
+        if (user.role === 'citizen') return [
+          { id: 'home', label: t.home }, { id: 'submit', label: t.fileComplaint }, { id: 'track', label: t.trackStatus }
+        ];
+        if (user.role === 'official') return [
+          { id: 'home', label: t.home }, { id: 'dashboard', label: t.officerDashboard }, { id: 'track', label: t.trackCases }
+        ];
+        return [
+          { id: 'home', label: t.home }, { id: 'dashboard', label: t.dashboard }, { id: 'analytics', label: t.cityAnalytics }, { id: 'track', label: t.trackCases }, { id: 'notifications', label: '🔔 Notifications' }
+        ];
+      };
+
+      const links = getLinks();
+      const roleLabel = { citizen: '👤 ' + t.citizen, official: '🏛️ ' + t.official, admin: '⚙️ ' + t.admin };
+
+      return (
+        <nav className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16 items-center">
+              <button onClick={() => setPage('home')} className="flex items-center gap-2.5 group">
+                <div className="w-9 h-9 bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
+                  <span className="text-white font-bold text-lg">C</span>
+                </div>
+                <span className="font-bold text-lg text-slate-900 hidden sm:block">{t.appName}</span>
+              </button>
+
+              <div className="hidden md:flex items-center gap-1">
+                {links.map(l => (
+                  <button key={l.id} onClick={() => setPage(l.id)}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                      page === l.id 
+                        ? 'bg-primary-50 text-primary-700 shadow-sm' 
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:block"><LanguageSwitcher lang={lang} setLang={setLang} /></div>
+                <div className="hidden sm:flex flex-col items-end text-right">
+                  <span className="text-xs font-medium text-slate-500">{roleLabel[user.role]}</span>
+                  <span className="text-sm text-slate-700 max-w-[120px] truncate font-medium">{user.identifier}</span>
+                </div>
+                <button onClick={onLogout}
+                  className="text-sm font-medium text-red-600 hover:text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                  {t.logout}
+                </button>
+                <button className="md:hidden p-2 rounded-lg hover:bg-slate-100" onClick={() => setOpen(!open)}>
+                  <Icon name={open ? "x" : "menu"} size={22} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {open && (
+            <div className="md:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1 animate-fade-in">
+              {links.map(l => (
+                <button key={l.id} onClick={() => { setPage(l.id); setOpen(false); }}
+                  className={`block w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium ${page === l.id ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  {l.label}
+                </button>
+              ))}
+              <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between px-2">
+                <LanguageSwitcher lang={lang} setLang={setLang} />
+                <button onClick={onLogout} className="text-sm font-medium text-red-600">{t.logout}</button>
+              </div>
+            </div>
+          )}
+        </nav>
+      );
+    }
+
+    // ========== FOOTER ==========
+    function Footer({ lang }) {
+      const t = translations[lang];
+      return (
+        <footer className="bg-slate-900 text-slate-400 py-12 mt-auto">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold">C</span>
+              </div>
+              <span className="text-white font-semibold">{t.appName}</span>
+            </div>
+            <p className="text-sm">{t.footer}</p>
+          </div>
+        </footer>
+      );
+    }
+
+    // ========== HOME ==========
+    function Home({ setPage, user, lang }) {
+      const t = translations[lang];
+      const features = [
+        { icon: 'file-text', title: t.smartIntake, desc: t.smartIntakeDesc, color: 'bg-blue-50 text-blue-600' },
+        { icon: 'zap', title: t.instantRouting, desc: t.instantRoutingDesc, color: 'bg-amber-50 text-amber-600' },
+        { icon: 'shield', title: t.priorityEngine, desc: t.priorityEngineDesc, color: 'bg-emerald-50 text-emerald-600' },
+        { icon: 'map-pin', title: t.liveTracking, desc: t.liveTrackingDesc, color: 'bg-rose-50 text-rose-600' },
+        { icon: 'bar-chart-3', title: t.recurringInsights, desc: t.recurringInsightsDesc, color: 'bg-violet-50 text-violet-600' },
+        { icon: 'check-circle', title: t.escalationLogic, desc: t.escalationLogicDesc, color: 'bg-cyan-50 text-cyan-600' },
+      ];
+      const welcomeMap = {
+        citizen: { title: t.welcomeCitizen, subtitle: t.citizenSubtitle },
+        official: { title: t.welcomeOfficial, subtitle: t.officialSubtitle },
+        admin: { title: t.welcomeAdmin, subtitle: t.adminSubtitle }
+      };
+      const welcome = welcomeMap[user.role] || welcomeMap.citizen;
+
+      return (
+        <div className="animate-fade-in">
+          <section className="relative bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 text-white overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-primary-500/20 via-transparent to-transparent"></div>
+            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight tracking-tight max-w-3xl">{welcome.title}</h1>
+              <p className="mt-5 text-lg text-primary-100 leading-relaxed max-w-2xl">{welcome.subtitle}</p>
+              <div className="mt-9 flex flex-col sm:flex-row gap-4">
+                {user.role === 'citizen' && (
+                  <>
+                    <button onClick={() => setPage('submit')}
+                      className="inline-flex items-center justify-center px-8 py-3.5 bg-white text-primary-800 font-semibold rounded-2xl shadow-lg hover:bg-primary-50 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+                      {t.fileAComplaint}
+                    </button>
+                    <button onClick={() => setPage('track')}
+                      className="inline-flex items-center justify-center px-8 py-3.5 bg-white/10 border border-white/30 text-white font-semibold rounded-2xl hover:bg-white/20 transition-all duration-300">
+                      {t.trackYourCase}
+                    </button>
+                  </>
+                )}
+                {user.role === 'official' && (
+                  <button onClick={() => setPage('dashboard')}
+                    className="inline-flex items-center justify-center px-8 py-3.5 bg-white text-primary-800 font-semibold rounded-2xl shadow-lg hover:bg-primary-50 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+                    {t.goToDashboard}
+                  </button>
+                )}
+                {user.role === 'admin' && (
+                  <>
+                    <button onClick={() => setPage('dashboard')}
+                      className="inline-flex items-center justify-center px-8 py-3.5 bg-white text-primary-800 font-semibold rounded-2xl shadow-lg hover:bg-primary-50 transition-all">
+                      {t.dashboard}
+                    </button>
+                    <button onClick={() => setPage('analytics')}
+                      className="inline-flex items-center justify-center px-8 py-3.5 bg-white/10 border border-white/30 text-white font-semibold rounded-2xl hover:bg-white/20 transition-all">
+                      {t.viewAnalytics}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white border-b border-slate-100">
+            <div className="max-w-7xl mx-auto px-4 py-12">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                {[
+                  { v: '48 hrs', l: t.avgResolution },
+                  { v: '94%', l: t.citizenSatisfaction },
+                  { v: '12+', l: t.departmentsConnected },
+                  { v: 'AI', l: t.autoClassification }
+                ].map(s => (
+                  <div key={s.l} className="group">
+                    <div className="text-3xl font-bold text-primary-700 group-hover:scale-105 transition-transform">{s.v}</div>
+                    <div className="mt-1.5 text-sm text-slate-500 font-medium">{s.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="max-w-7xl mx-auto px-4 py-20">
+            <div className="text-center max-w-2xl mx-auto mb-14">
+              <h2 className="text-3xl font-bold text-slate-900">{t.howItWorks}</h2>
+              <p className="mt-4 text-slate-600 text-lg">{t.howItWorksDesc}</p>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {features.map((f, i) => (
+                <div key={f.title} className="card-hover bg-white rounded-2xl p-7 border border-slate-100 shadow-soft">
+                  <div className={`w-12 h-12 ${f.color} rounded-xl flex items-center justify-center mb-5`}>
+                    <Icon name={f.icon} size={24} />
+                  </div>
+                  <h3 className="font-semibold text-lg text-slate-900">{f.title}</h3>
+                  <p className="mt-2 text-slate-600 text-sm leading-relaxed">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    // ========== SUBMIT (with Microphone) ==========
+    function SubmitComplaint({ lang, user }) {
+      const t = translations[lang];
+      const [form, setForm] = useState({ category: '', description: '', location: '', urgency: 'medium', name: user?.name || '', phone: user?.phone || '' });
+      const [imagePreview, setImagePreview] = useState(null);
+      const [submitting, setSubmitting] = useState(false);
+      const [success, setSuccess] = useState(null);
+      const [aiResult, setAiResult] = useState(null);
+      const [submitError, setSubmitError] = useState('');
+      const [isListening, setIsListening] = useState(false);
+      const recognitionRef = useRef(null);
+
+      const categories = {
+        en: ['Roads & Potholes', 'Drainage & Flooding', 'Waste Management', 'Water Supply', 'Streetlights', 'Public Facilities', 'Other'],
+        hi: ['सड़क और गड्ढे', 'जल निकासी और बाढ़', 'कचरा प्रबंधन', 'जल आपूर्ति', 'स्ट्रीटलाइट', 'सार्वजनिक सुविधाएं', 'अन्य'],
+        te: ['రోడ్లు & గుంతలు', 'డ్రైనేజీ & వరదలు', 'వ్యర్థాల నిర్వహణ', 'నీటి సరఫరా', 'స్ట్రీట్‌లైట్లు', 'పబ్లిక్ సౌకర్యాలు', 'ఇతర']
+      };
+
+      useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+          const recognition = new SpeechRecognition();
+          recognition.continuous = false;
+          recognition.interimResults = false;
+          recognition.lang = lang === 'hi' ? 'hi-IN' : lang === 'te' ? 'te-IN' : 'en-IN';
+          recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            setForm(prev => ({ ...prev, description: prev.description ? prev.description + ' ' + transcript : transcript }));
+            setIsListening(false);
+          };
+          recognition.onerror = () => setIsListening(false);
+          recognition.onend = () => setIsListening(false);
+          recognitionRef.current = recognition;
+        }
+      }, [lang]);
+
+      const toggleMic = () => {
+        if (!recognitionRef.current) { alert(t.micUnsupported); return; }
+        if (isListening) {
+          recognitionRef.current.stop();
+          setIsListening(false);
+        } else {
+          recognitionRef.current.lang = lang === 'hi' ? 'hi-IN' : lang === 'te' ? 'te-IN' : 'en-IN';
+          recognitionRef.current.start();
+          setIsListening(true);
+        }
+      };
+
+      const handleImage = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => setImagePreview(reader.result);
+          reader.readAsDataURL(file);
+        }
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setSubmitError('');
+        try {
+          const complaint = await apiRequest('/complaints', {
+            method: 'POST',
+            body: JSON.stringify({
+              ...form,
+              name: form.name || user?.name || '',
+              phone: form.phone || user?.phone || '',
+              photoDataUrl: imagePreview || '',
+              reporter: user ? {
+                identifier: user.identifier,
+                type: user.type,
+                role: user.role,
+                name: user.name || '',
+                email: user.email || '',
+                phone: user.phone || '',
+                location: user.location || '',
+                coordinates: user.coordinates || null,
+              } : null,
+            }),
+          });
+          setAiResult({ ...complaint, score: complaint.impactScore });
+          setSuccess(complaint.id);
+          return;
+        } catch (error) {
+          setSubmitError(error.message);
+        } finally {
+          setSubmitting(false);
+        }
+        /* Legacy mock path; API responses return above.
+        await new Promise(r => setTimeout(r, 2200));
+        const mockAI = {
+          id: 'CR-' + Math.floor(100000 + Math.random() * 900000),
+          department: lang === 'te' ? 'ప్రజా పనుల శాఖ' : lang === 'hi' ? 'लोक निर्माण विभाग' : 'Public Works Department',
+          priority: form.urgency === 'high' ? (lang === 'te' ? 'క్లిష్టమైన' : lang === 'hi' ? 'गंभीर' : 'Critical') : form.urgency === 'medium' ? (lang === 'te' ? 'ఎక్కువ' : lang === 'hi' ? 'उच्च' : 'High') : (lang === 'te' ? 'మధ్యస్థం' : lang === 'hi' ? 'मध्यम' : 'Medium'),
+          score: form.urgency === 'high' ? 92 : 68,
+          duplicates: Math.random() > 0.7 ? 2 : 0,
+          eta: form.urgency === 'high' ? (lang === 'te' ? '24–48 గంటలు' : '24–48 घंटे') : (lang === 'te' ? '3–5 రోజులు' : '3–5 दिन'),
+        };
+        setAiResult(mockAI);
+        setSuccess(mockAI.id);
+        setSubmitting(false); */
+      };
+
+      if (success) {
+        return (
+          <div className="max-w-2xl mx-auto px-4 py-16 animate-slide-up">
+            <div className="bg-white rounded-3xl shadow-soft-lg border border-slate-100 p-8 sm:p-10 text-center">
+              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Icon name="check-circle-2" size={40} className="text-emerald-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900">{t.successTitle}</h2>
+              <p className="mt-2 text-slate-500">{t.yourCaseId}</p>
+              <div className="mt-5 inline-block bg-primary-50 text-primary-800 font-mono text-xl font-bold px-6 py-3 rounded-2xl tracking-wide">
+                {success}
+              </div>
+              {aiResult && (
+                <div className="mt-8 text-left bg-slate-50 rounded-2xl p-6 space-y-4">
+                  <h3 className="font-semibold text-slate-800">{t.aiSummary}</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-slate-500 block mb-0.5">{t.department}</span><p className="font-medium text-slate-800">{aiResult.department}</p></div>
+                    <div><span className="text-slate-500 block mb-0.5">{t.priority}</span><p className="font-medium text-orange-600">{aiResult.priority}</p></div>
+                    <div><span className="text-slate-500 block mb-0.5">{t.impactScore}</span><p className="font-medium">{aiResult.score}/100</p></div>
+                    <div><span className="text-slate-500 block mb-0.5">{t.expectedResolution}</span><p className="font-medium">{aiResult.eta}</p></div>
+                  </div>
+                  {aiResult.duplicates > 0 && (
+                    <div className="flex items-start gap-2.5 text-amber-800 bg-amber-50 p-3.5 rounded-xl text-sm">
+                      <Icon name="alert-circle" size={18} className="mt-0.5 shrink-0" />
+                      <span>{aiResult.duplicates} {t.similarComplaints}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <button onClick={() => { setSuccess(null); setAiResult(null); setSubmitError(''); setForm({ category: '', description: '', location: '', urgency: 'medium', name: user?.name || '', phone: user?.phone || '' }); setImagePreview(null); }}
+                className="mt-8 text-primary-600 font-semibold hover:text-primary-700 hover:underline">
+                {t.fileAnother}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="max-w-3xl mx-auto px-4 py-10 animate-fade-in">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-900">{t.fileCivicComplaint}</h1>
+            <p className="mt-2 text-slate-600">{t.fileDesc}</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-soft border border-slate-100 p-6 sm:p-8 space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.category}</label>
+              <select required value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-slate-50 focus:bg-white transition-all">
+                <option value="">{t.selectCategory}</option>
+                {categories[lang].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.describeProblem}</label>
+              <div className="relative">
+                <textarea required rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+                  placeholder={t.describePlaceholder}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-14 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none bg-slate-50 focus:bg-white transition-all" />
+                <button type="button" onClick={toggleMic} title={isListening ? t.listening : "Speak"}
+                  className={`absolute right-3 bottom-3 p-2.5 rounded-full transition-all ${
+                    isListening ? 'bg-red-500 text-white mic-pulse' : 'bg-primary-50 text-primary-600 hover:bg-primary-100'
+                  }`}>
+                  <Icon name={isListening ? "mic-off" : "mic"} size={20} />
+                </button>
+              </div>
+              {isListening && (
+                <p className="mt-2.5 text-sm text-red-600 flex items-center gap-2 font-medium">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  {t.listening}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.location}</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="map-pin" size={18} /></span>
+                <input required type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
+                  placeholder={t.locationPlaceholder}
+                  className="w-full rounded-xl border border-slate-200 pl-11 pr-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white transition-all" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.photo}</label>
+              <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center hover:border-primary-300 hover:bg-primary-50/30 transition-all">
+                {imagePreview ? (
+                  <div className="relative inline-block">
+                    <img src={imagePreview} alt="Preview" className="max-h-48 rounded-xl shadow-md" />
+                    <button type="button" onClick={() => setImagePreview(null)}
+                      className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 shadow-md text-slate-600 hover:text-red-500">
+                      <Icon name="x" size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer flex flex-col items-center gap-3">
+                    <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center">
+                      <Icon name="camera" size={28} className="text-slate-400" />
+                    </div>
+                    <span className="text-sm text-slate-600 font-medium">{t.clickPhoto}</span>
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImage} />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-3">{t.howUrgent}</label>
+              <div className="flex gap-3">
+                {['low', 'medium', 'high'].map(u => (
+                  <button key={u} type="button" onClick={() => setForm({ ...form, urgency: u })}
+                    className={`flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all ${
+                      form.urgency === u
+                        ? u === 'high' ? 'bg-red-50 border-red-300 text-red-700 shadow-sm' 
+                          : u === 'medium' ? 'bg-amber-50 border-amber-300 text-amber-700 shadow-sm' 
+                          : 'bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}>
+                    {t[u]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t.yourName}</label>
+                <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t.phoneWhatsapp}</label>
+                <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white transition-all" />
+              </div>
+            </div>
+
+            {submitError && <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{submitError}</div>}
+
+            <button type="submit" disabled={submitting}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-4 rounded-2xl transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 disabled:opacity-70">
+              {submitting ? (<><Icon name="loader-2" size={20} className="animate-spin" /> {t.analyzing}</>) : (<><Icon name="send" size={18} /> {t.submitComplaint}</>)}
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    // ========== TRACK ==========
+    function TrackComplaint({ lang }) {
+      const t = translations[lang];
+      const [id, setId] = useState('');
+      const [result, setResult] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const mockStatus = {
+        id: 'CR-482917',
+        status: lang === 'te' ? 'పురోగతిలో' : lang === 'hi' ? 'प्रगति पर' : 'In Progress',
+        category: lang === 'te' ? 'రోడ్లు & గుంతలు' : lang === 'hi' ? 'सड़क और गड्ढे' : 'Roads & Potholes',
+        summary: lang === 'te' ? 'సిటీ హాస్పిటల్ దగ్గర మెయిన్ రోడ్‌పై పెద్ద గుంత, ట్రాఫిక్ జామ్ మరియు భద్రతా ప్రమాదం కలిగిస్తోంది.' : lang === 'hi' ? 'सिटी हॉस्पिटल के पास मेन रोड पर बड़ा गड्ढा जिससे ट्रैफिक जाम और सुरक्षा जोखिम हो रहा है।' : 'Large pothole on Main Road near City Hospital causing traffic congestion and safety risk.',
+        location: lang === 'te' ? 'మెయిన్ రోడ్, సిటీ హాస్పిటల్ దగ్గర, వార్డ్ 12' : lang === 'hi' ? 'मेन रोड, सिटी हॉस्पिटल के पास, वार्ड 12' : 'Main Road, near City Hospital, Ward 12',
+        department: lang === 'te' ? 'ప్రజా పనుల శాఖ' : lang === 'hi' ? 'लोक निर्माण विभाग' : 'Public Works Department',
+        team: lang === 'te' ? 'రోడ్ మెయింటెనెన్స్ యూనిట్ – జోన్ 3' : lang === 'hi' ? 'सड़क रखरखाव इकाई – जोन 3' : 'Road Maintenance Unit – Zone 3',
+        priority: lang === 'te' ? 'ఎక్కువ' : lang === 'hi' ? 'उच्च' : 'High',
+        impactScore: 78, eta: '2026-08-22',
+        timeline: [
+          { time: '18 Aug, 09:42', title: lang === 'te' ? 'ఫిర్యాదు స్వీకరించబడింది' : lang === 'hi' ? 'शिकायत प्राप्त' : 'Complaint Received', desc: lang === 'te' ? 'AI వర్గీకరించి నమోదు చేసింది' : lang === 'hi' ? 'AI ने वर्गीकृत और पंजीकृत किया' : 'AI classified & registered', done: true },
+          { time: '18 Aug, 09:45', title: lang === 'te' ? 'విభాగానికి రూట్ చేయబడింది' : lang === 'hi' ? 'विभाग को भेजा' : 'Routed to Department', desc: lang === 'te' ? 'ప్రజా పనులకు కేటాయించబడింది' : lang === 'hi' ? 'लोक निर्माण को सौंपा' : 'Assigned to Public Works', done: true },
+          { time: '18 Aug, 11:20', title: lang === 'te' ? 'టీమ్ కేటాయించబడింది' : lang === 'hi' ? 'टीम आवंटित' : 'Team Assigned', desc: lang === 'te' ? 'రోడ్ మెయింటెనెన్స్ యూనిట్ – జోన్ 3' : lang === 'hi' ? 'सड़क रखरखाव इकाई – जोन 3' : 'Road Maintenance Unit – Zone 3', done: true },
+          { time: '20 Aug, 14:15', title: lang === 'te' ? 'పని ప్రారంభమైంది' : lang === 'hi' ? 'काम शुरू' : 'Work Started', desc: lang === 'te' ? 'టీమ్ సైట్‌లో, మెటీరియల్ ఆర్డర్ చేయబడింది' : lang === 'hi' ? 'टीम साइट पर, सामग्री मंगवाई' : 'Team on site, materials ordered', done: true },
+          { time: 'Expected 22 Aug', title: lang === 'te' ? 'పరిష్కారం' : lang === 'hi' ? 'समाधान' : 'Resolution', desc: lang === 'te' ? 'గుంత నింపడం & ఉపరితల పునరుద్ధరణ' : lang === 'hi' ? 'गड्ढा भरना और सतह बहाली' : 'Pothole filling & surface restoration', done: false },
+        ]
+      };
+
+      const handleSearch = async (e) => {
+        e.preventDefault();
+        if (!id.trim()) return;
+        setLoading(true);
+        setError('');
+        try {
+          const complaint = await apiRequest(`/complaints/${encodeURIComponent(id.trim())}`);
+          setResult({ ...complaint, impactScore: complaint.impactScore ?? complaint.score });
+        } catch (requestError) {
+          setResult(null);
+          setError(requestError.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="max-w-3xl mx-auto px-4 py-10 animate-fade-in">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">{t.trackTitle}</h1>
+          <p className="text-slate-600 mb-8">{t.trackDesc}</p>
+
+          <form onSubmit={handleSearch} className="flex gap-3 mb-10">
+            <div className="relative flex-1">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" size={18} /></span>
+              <input type="text" value={id} onChange={e => setId(e.target.value)} placeholder="e.g. CR-482917"
+                className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-primary-500 outline-none bg-white shadow-sm" />
+            </div>
+            <button type="submit" disabled={loading}
+              className="px-7 py-3.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-2xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-md">
+              {loading ? t.searching : t.track}
+            </button>
+          </form>
+
+          {error && <div className="mb-8 rounded-2xl bg-red-50 border border-red-100 px-5 py-4 text-sm text-red-700">{error}</div>}
+
+          {result && (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-soft-lg overflow-hidden animate-slide-up">
+              <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="font-mono text-lg font-bold text-primary-700">{result.id}</div>
+                  <div className="text-sm text-slate-500 mt-0.5">{result.category}</div>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-semibold bg-blue-50 text-blue-700">
+                  <Icon name="clock" size={14} /> {result.status}
+                </span>
+              </div>
+              <div className="p-6 space-y-6">
+                <p className="text-slate-700 leading-relaxed">{result.summary}</p>
+                <div className="grid sm:grid-cols-2 gap-5 text-sm">
+                  <div className="flex items-start gap-2.5">
+                    <Icon name="map-pin" size={16} className="text-slate-400 mt-0.5" />
+                    <div><div className="text-slate-500 mb-0.5">{t.location}</div><div className="font-medium">{result.location}</div></div>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <Icon name="building-2" size={16} className="text-slate-400 mt-0.5" />
+                    <div><div className="text-slate-500 mb-0.5">{t.department}</div><div className="font-medium">{result.department}</div><div className="text-slate-500 text-xs mt-0.5">{result.team}</div></div>
+                  </div>
+                  <div><div className="text-slate-500 mb-0.5">{t.priority}</div><div className="font-medium text-orange-600">{result.priority} (Score: {result.impactScore})</div></div>
+                  <div><div className="text-slate-500 mb-0.5">{t.expectedResolution}</div><div className="font-medium">{result.eta}</div></div>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-5">{t.progressTimeline}</h3>
+                  <div className="space-y-0">
+                    {result.timeline.map((item, i) => (
+                      <div key={i} className="flex gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center ${item.done ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                            <Icon name={item.done ? "check-circle" : "clock"} size={18} />
+                          </div>
+                          {i < result.timeline.length - 1 && <div className={`w-0.5 flex-1 min-h-[44px] ${item.done ? 'bg-emerald-200' : 'bg-slate-200'}`} />}
+                        </div>
+                        <div className="pb-7">
+                          <div className="font-medium text-slate-900">{item.title}</div>
+                          <div className="text-sm text-slate-500 mt-0.5">{item.desc}</div>
+                          <div className="text-xs text-slate-400 mt-1">{item.time}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ========== DASHBOARD ==========
+    function Dashboard({ lang }) {
+      const t = translations[lang];
+      const [filter, setFilter] = useState('all');
+      const [complaints, setComplaints] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState('');
+      const fallbackComplaints = [
+        { id: 'CR-482917', category: lang === 'te' ? 'రోడ్లు & గుంతలు' : lang === 'hi' ? 'सड़क और गड्ढे' : 'Roads & Potholes', location: 'Main Road, Ward 12', priority: lang === 'te' ? 'క్లిష్టమైన' : lang === 'hi' ? 'गंभीर' : 'Critical', score: 92, status: lang === 'te' ? 'పురోగతిలో' : lang === 'hi' ? 'प्रगति पर' : 'In Progress', age: '3 days' },
+        { id: 'CR-481203', category: lang === 'te' ? 'డ్రైనేజీ' : lang === 'hi' ? 'जल निकासी' : 'Drainage & Flooding', location: 'Sector 7 Market', priority: lang === 'te' ? 'ఎక్కువ' : lang === 'hi' ? 'उच्च' : 'High', score: 81, status: lang === 'te' ? 'కేటాయించబడింది' : lang === 'hi' ? 'आवंटित' : 'Assigned', age: '1 day' },
+        { id: 'CR-479881', category: lang === 'te' ? 'స్ట్రీట్‌లైట్లు' : lang === 'hi' ? 'स्ट्रीटलाइट' : 'Streetlights', location: 'Park Avenue', priority: lang === 'te' ? 'మధ్యస్థం' : lang === 'hi' ? 'मध्यम' : 'Medium', score: 54, status: lang === 'te' ? 'పెండింగ్' : lang === 'hi' ? 'लंबित' : 'Pending', age: '5 days' },
+        { id: 'CR-478112', category: lang === 'te' ? 'వ్యర్థాల నిర్వహణ' : lang === 'hi' ? 'कचरा प्रबंधन' : 'Waste Management', location: 'Residential Colony B', priority: lang === 'te' ? 'ఎక్కువ' : lang === 'hi' ? 'उच्च' : 'High', score: 76, status: lang === 'te' ? 'ఎస్కలేటెడ్' : lang === 'hi' ? 'एस्केलेटेड' : 'Escalated', age: '7 days' },
+      ];
+      useEffect(() => {
+        let active = true;
+        apiRequest('/complaints')
+          .then(records => { if (active) setComplaints(records); })
+          .catch(requestError => { if (active) setError(requestError.message); })
+          .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+      }, []);
+
+      const liveComplaints = complaints.map(c => ({
+        ...c,
+        score: c.impactScore,
+        age: c.createdAt ? `${Math.max(0, Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000))} days` : '—',
+      }));
+      const filtered = filter === 'all' ? liveComplaints : liveComplaints.filter(c => c.priority.toLowerCase().includes(filter) || (filter === 'critical' && c.score > 90));
+      const openCases = liveComplaints.filter(c => !['Resolved'].includes(c.status)).length;
+      const criticalCases = liveComplaints.filter(c => c.score > 90).length;
+      const escalatedCases = liveComplaints.filter(c => c.status === 'Escalated').length;
+      const resolvedToday = liveComplaints.filter(c => c.status === 'Resolved' && c.updatedAt && new Date(c.updatedAt).toDateString() === new Date().toDateString()).length;
+
+      return (
+        <div className="max-w-7xl mx-auto px-4 py-10 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">{t.officerDashboardTitle}</h1>
+              <p className="text-slate-600 mt-1">{t.liveCases}</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {['all', 'critical', 'high', 'medium'].map(f => (
+                <button key={f} onClick={() => setFilter(f)}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold capitalize transition-all ${
+                    filter === f ? 'bg-primary-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}>
+                  {t[f] || f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && <div className="mb-6 rounded-2xl bg-red-50 border border-red-100 px-5 py-4 text-sm text-red-700">{error}</div>}
+          {loading && <div className="mb-6 rounded-2xl bg-blue-50 border border-blue-100 px-5 py-4 text-sm text-blue-700">Loading complaints from MongoDB…</div>}
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+            {[
+              { label: t.openCases, value: openCases, icon: 'clock', color: 'bg-blue-50 text-blue-600' },
+              { label: t.critical, value: criticalCases, icon: 'alert-triangle', color: 'bg-red-50 text-red-600' },
+              { label: t.escalated, value: escalatedCases, icon: 'arrow-up-right', color: 'bg-orange-50 text-orange-600' },
+              { label: t.resolvedToday, value: resolvedToday, icon: 'check-circle', color: 'bg-emerald-50 text-emerald-600' },
+            ].map(k => (
+              <div key={k.label} className="card-hover bg-white rounded-2xl border border-slate-100 p-5 shadow-soft">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${k.color}`}>
+                  <Icon name={k.icon} size={22} />
+                </div>
+                <div className="mt-4 text-2xl font-bold text-slate-900">{k.value}</div>
+                <div className="text-sm text-slate-500 font-medium mt-0.5">{k.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50/80 border-b border-slate-100">
+                  <tr>
+                    {[t.caseId, t.categoryCol, t.locationCol, t.priorityCol, t.statusCol, t.ageCol, t.actionCol].map(h => (
+                      <th key={h} className="text-left px-5 py-4 font-semibold text-slate-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filtered.map(c => (
+                    <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-5 py-4 font-mono font-semibold text-primary-700">{c.id}</td>
+                      <td className="px-5 py-4">{c.category}</td>
+                      <td className="px-5 py-4 text-slate-600">{c.location}</td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          c.score > 90 ? 'bg-red-50 text-red-700' : c.score > 70 ? 'bg-orange-50 text-orange-700' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {c.priority} ({c.score})
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-slate-700">{c.status}</td>
+                      <td className="px-5 py-4 text-slate-500">{c.age}</td>
+                      <td className="px-5 py-4">
+                        <button className="text-primary-600 font-semibold hover:text-primary-700 hover:underline">{t.view}</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========== ANALYTICS ==========
+    function Analytics({ lang }) {
+      const t = translations[lang];
+      const hotspots = [
+        { area: 'Ward 12 – Main Road', count: 28, type: lang === 'te' ? 'రోడ్లు' : lang === 'hi' ? 'सड़क' : 'Roads' },
+        { area: 'Sector 7 Market', count: 19, type: lang === 'te' ? 'డ్రైనేజీ' : lang === 'hi' ? 'जल निकासी' : 'Drainage' },
+        { area: 'Colony B', count: 15, type: lang === 'te' ? 'వ్యర్థాలు' : lang === 'hi' ? 'कचरा' : 'Waste' },
+        { area: 'Park Avenue', count: 12, type: lang === 'te' ? 'స్ట్రీట్‌లైట్లు' : lang === 'hi' ? 'स्ट्रीटलाइट' : 'Streetlights' },
+      ];
+      const categories = [
+        { name: lang === 'te' ? 'రోడ్లు & గుంతలు' : lang === 'hi' ? 'सड़क और गड्ढे' : 'Roads & Potholes', value: 42, color: 'bg-blue-500' },
+        { name: lang === 'te' ? 'వ్యర్థాల నిర్వహణ' : lang === 'hi' ? 'कचरा प्रबंधन' : 'Waste Management', value: 28, color: 'bg-teal-500' },
+        { name: lang === 'te' ? 'డ్రైనేజీ' : lang === 'hi' ? 'जल निकासी' : 'Drainage', value: 19, color: 'bg-amber-500' },
+        { name: lang === 'te' ? 'స్ట్రీట్‌లైట్లు' : lang === 'hi' ? 'स्ट्रीटलाइट' : 'Streetlights', value: 15, color: 'bg-purple-500' },
+        { name: lang === 'te' ? 'నీటి సరఫరా' : lang === 'hi' ? 'जल आपूर्ति' : 'Water Supply', value: 11, color: 'bg-cyan-500' },
+      ];
+
+      return (
+        <div className="max-w-7xl mx-auto px-4 py-10 animate-fade-in">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">{t.cityAnalyticsTitle}</h1>
+          <p className="text-slate-600 mb-8">{t.recurringProblems}</p>
+
+          <div className="grid lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-soft p-6">
+              <h2 className="font-semibold text-lg mb-5 flex items-center gap-2">
+                <Icon name="trending-up" size={20} className="text-primary-600" /> {t.complaintsByCategory}
+              </h2>
+              <div className="space-y-5">
+                {categories.map(item => (
+                  <div key={item.name}>
+                    <div className="flex justify-between text-sm mb-1.5">
+                      <span className="font-medium text-slate-700">{item.name}</span>
+                      <span className="font-semibold text-slate-900">{item.value}%</span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${item.color} rounded-full transition-all duration-700`} style={{ width: `${item.value}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-soft p-6">
+              <h2 className="font-semibold text-lg mb-5 flex items-center gap-2">
+                <Icon name="alert-circle" size={20} className="text-orange-500" /> {t.topHotspots}
+              </h2>
+              <div className="space-y-4">
+                {hotspots.map((h, i) => (
+                  <div key={h.area} className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600 shrink-0">
+                      {i + 1}
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-900">{h.area}</div>
+                      <div className="text-sm text-slate-500">{h.count} · {h.type}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-soft p-6">
+            <h2 className="font-semibold text-lg mb-2 flex items-center gap-2">
+              <Icon name="map" size={20} className="text-primary-600" /> {t.recurringInsightsTitle}
+            </h2>
+            <p className="text-slate-600 text-sm mb-5">{t.recurringDesc}</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+                <div className="font-semibold text-amber-900">Ward 12 Road Network</div>
+                <p className="text-sm text-amber-800 mt-1.5 leading-relaxed">
+                  {lang === 'te' ? '45 రోజుల్లో 28 గుంత ఫిర్యాదులు. సిఫార్సు: పూర్తి రీసర్ఫేసింగ్ అసెస్‌మెంట్.' : lang === 'hi' ? '45 दिनों में 28 गड्ढे की शिकायतें। सुझाव: पूर्ण रिसरफेसिंग मूल्यांकन।' : '28 pothole complaints in 45 days. Recommended: Full resurfacing assessment.'}
+                </p>
+              </div>
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+                <div className="font-semibold text-blue-900">Sector 7 Drainage</div>
+                <p className="text-sm text-blue-800 mt-1.5 leading-relaxed">
+                  {lang === 'te' ? 'మధ్యస్థ వర్షం తర్వాత పునరావృత వరదలు. సిఫార్సు: కెపాసిటీ అప్‌గ్రేడ్ స్టడీ.' : lang === 'hi' ? 'मध्यम बारिश के बाद आवर्ती बाढ़। सुझाव: क्षमता उन्नयन अध्ययन।' : 'Recurring flooding after moderate rain. Recommended: Capacity upgrade study.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========== ADMIN NOTIFICATIONS ==========
+    function AdminNotifications() {
+      const [requests, setRequests] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState('');
+      const [actionId, setActionId] = useState('');
+
+      const loadRequests = async () => {
+        setError('');
+        try {
+          const response = await apiRequest('/admin/notifications');
+          setRequests(response.requests || []);
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => { loadRequests(); }, []);
+
+      const decide = async (requestId, decision) => {
+        setActionId(requestId);
+        setError('');
+        try {
+          await apiRequest(`/admin/official-requests/${requestId}/${decision}`, { method: 'POST' });
+          setRequests(current => current.filter(request => request.requestId !== requestId));
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setActionId('');
+        }
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto px-4 py-10 animate-fade-in">
+          <div className="flex items-center justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Notifications</h1>
+              <p className="text-slate-600 mt-1">Review government-official account requests.</p>
+            </div>
+            <button type="button" onClick={loadRequests} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <Icon name="refresh-cw" size={16} /> Refresh
+            </button>
+          </div>
+
+          {error && <div className="mb-6 rounded-2xl bg-red-50 border border-red-100 px-5 py-4 text-sm text-red-700">{error}</div>}
+          {loading && <div className="rounded-2xl bg-blue-50 border border-blue-100 px-5 py-4 text-sm text-blue-700">Loading notifications...</div>}
+          {!loading && !requests.length && <div className="bg-white rounded-3xl border border-slate-100 shadow-soft p-10 text-center text-slate-500">No pending notifications.</div>}
+
+          <div className="space-y-5">
+            {requests.map(request => (
+              <article key={request.requestId} className="bg-white rounded-3xl border border-slate-100 shadow-soft p-6">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><Icon name="user-plus" size={20} /></div>
+                      <div>
+                        <h2 className="font-bold text-slate-900">Government official signup request</h2>
+                        <p className="text-xs text-slate-500 mt-0.5">{request.createdAt ? new Date(request.createdAt).toLocaleString() : ''}</p>
+                      </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 mt-6 text-sm">
+                      <div><span className="block text-slate-500">Name</span><strong>{request.name}</strong></div>
+                      <div><span className="block text-slate-500">Email</span><strong>{request.email}</strong></div>
+                      <div><span className="block text-slate-500">Phone</span><strong>{request.phone}</strong></div>
+                      <div><span className="block text-slate-500">Location</span><strong>{request.location}</strong></div>
+                    </div>
+                  </div>
+                  <div className="flex sm:flex-col gap-2 shrink-0">
+                    <button type="button" disabled={actionId === request.requestId} onClick={() => decide(request.requestId, 'approve')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+                      <Icon name="check" size={16} /> Accept
+                    </button>
+                    <button type="button" disabled={actionId === request.requestId} onClick={() => decide(request.requestId, 'reject')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60">
+                      <Icon name="x" size={16} /> Reject
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ========== MAIN APP ==========
+    function App() {
+      const [user, setUser] = useState(null);
+      const [page, setPage] = useState('home');
+      const [lang, setLang] = useState('en');
+      const [authPage, setAuthPage] = useState('login');
+
+      useEffect(() => { if (window.lucide) lucide.createIcons(); });
+
+      const handleLogin = (userData) => {
+        window.civicResolveToken = userData.authToken;
+        setUser(userData);
+        setPage('home');
+      };
+
+      if (!user) {
+        return authPage === 'signup'
+          ? <Signup onBack={() => setAuthPage('login')} lang={lang} setLang={setLang} />
+          : <Login onLogin={handleLogin} onSignup={() => setAuthPage('signup')} lang={lang} setLang={setLang} />;
+      }
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          <Navbar page={page} setPage={setPage} user={user} onLogout={() => { window.civicResolveToken = ''; setUser(null); }} lang={lang} setLang={setLang} />
+          <main className="flex-1">
+            {page === 'home' && <Home setPage={setPage} user={user} lang={lang} />}
+            {page === 'submit' && <SubmitComplaint lang={lang} user={user} />}
+            {page === 'track' && <TrackComplaint lang={lang} />}
+            {page === 'dashboard' && <Dashboard lang={lang} />}
+            {page === 'analytics' && <Analytics lang={lang} />}
+            {page === 'notifications' && user.role === 'admin' && <AdminNotifications />}
+          </main>
+          <Footer lang={lang} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
