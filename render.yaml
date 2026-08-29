@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: civicresolve
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: civicresolve
+      - key: OFFICIAL_AUTO_ASSIGN_RADIUS_KM
+        value: 5
+      - key: AGENT_PROVIDER
+        value: local-policy-agent
+      - key: AGENT_LLM_ENABLED
+        value: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_SECURE
+        value: true
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: OTP_FROM
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

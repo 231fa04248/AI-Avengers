@@ -9,15 +9,16 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/styles.css" />
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
             primary: {
-              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe',
-              500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
-              800: '#1e40af', 900: '#1e3a8a'
+              50: '#f9ece9', 100: '#f3d5d0', 200: '#e7aca5',
+              500: '#c25145', 600: '#b33a2e', 700: '#8f2e25',
+              800: '#6f251e', 900: '#521b16'
             }
           },
           boxShadow: {
@@ -40,8 +41,6 @@
     }
   </script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    body { font-family: 'Inter', system-ui, sans-serif; }
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .mic-pulse { animation: pulse 1.4s infinite; }
@@ -55,7 +54,7 @@
     .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -15px rgba(0,0,0,0.12); }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased">
+<body class="civic-body antialiased">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -89,7 +88,7 @@
         officialSubtitle: "Review assigned cases, update status and resolve citizen problems.",
         adminSubtitle: "Monitor system performance, analytics and overall city operations.",
         fileAComplaint: "File a Complaint", trackYourCase: "Track Your Case", goToDashboard: "Go to Officer Dashboard", viewAnalytics: "View Analytics",
-        avgResolution: "Avg. Resolution", citizenSatisfaction: "Citizen Satisfaction", departmentsConnected: "Departments Connected", autoClassification: "Auto Classification",
+        avgResolution: "Avg. Resolution", citizenSatisfaction: "Citizen Satisfaction", departmentsConnected: "Departments Connected", autoClassification: "AI Assistance",
         howItWorks: "How CivicResolve Works", howItWorksDesc: "An end-to-end agentic platform that turns citizen reports into resolved cases.",
         smartIntake: "Smart Intake", smartIntakeDesc: "Text, photo & location-based reporting with AI auto-classification",
         instantRouting: "Instant Routing", instantRoutingDesc: "Automatically routes to the correct department & team",
@@ -203,14 +202,35 @@
 
     // ========== ICON ==========
     const Icon = ({ name, size = 20, className = "" }) => {
-      useEffect(() => { if (window.lucide) lucide.createIcons(); });
-      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+      // Render Lucide's icon nodes through React. Calling lucide.createIcons()
+      // here mutates React-owned DOM and causes NotFoundError on auth/page
+      // transitions when React reconciles the replaced <i> elements.
+      const iconKey = String(name || '').split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+      const iconNodes = window.lucide && window.lucide.icons
+        ? (window.lucide.icons[iconKey] || window.lucide.icons.Circle)
+        : [['circle', { cx: '12', cy: '12', r: '10' }]];
+      return (
+        <svg
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className={className}
+        >
+          {iconNodes.map(([tag, attributes], index) => React.createElement(tag, { ...attributes, key: index }))}
+        </svg>
+      );
     };
 
     // ========== LANGUAGE SWITCHER ==========
     function LanguageSwitcher({ lang, setLang, dark = false }) {
       return (
-        <div className={`flex items-center rounded-full p-1 text-sm font-medium ${dark ? 'bg-white/15 backdrop-blur' : 'bg-slate-100'}`}>
+        <div className={`flex items-center rounded-full p-1 text-sm font-medium ${dark ? 'auth-language-switcher bg-white/15 backdrop-blur' : 'bg-slate-100'}`}>
           {['en', 'hi', 'te'].map(l => (
             <button key={l} onClick={() => setLang(l)}
               className={`px-3 py-1.5 rounded-full transition-all duration-200 ${
@@ -225,21 +245,41 @@
       );
     }
 
+    function AuthBrand({ compact = false }) {
+      return (
+        <div className={`auth-brand ${compact ? 'auth-brand-compact' : ''}`}>
+          <div className="auth-seal" aria-hidden="true">
+            <span>CR</span>
+            <small>REGISTERED</small>
+          </div>
+          <h1>CivicResolve AI</h1>
+          {!compact && <p>REGISTERED PUBLIC GRIEVANCE SYSTEM</p>}
+        </div>
+      );
+    }
+
     // ========== LOGIN ==========
     function Login({ onLogin, onSignup, lang, setLang }) {
       const t = translations[lang];
+      const [authStep, setAuthStep] = useState('welcome');
       const [role, setRole] = useState(null);
       const [mode, setMode] = useState('email');
       const [value, setValue] = useState('');
       const [password, setPassword] = useState('');
       const [error, setError] = useState('');
+      const [notice, setNotice] = useState('');
       const [loading, setLoading] = useState(false);
+      const [forgotEmail, setForgotEmail] = useState('');
+      const [forgotOtp, setForgotOtp] = useState('');
+      const [newPassword, setNewPassword] = useState('');
+      const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
       const roles = [
-        { id: 'citizen', emoji: '👤', title: t.citizen, desc: t.citizenDesc, color: 'from-blue-500 to-blue-600' },
-        { id: 'official', emoji: '🏛️', title: t.official, desc: t.officialDesc, color: 'from-emerald-500 to-teal-600' },
-        { id: 'admin', emoji: '⚙️', title: t.admin, desc: t.adminDesc, color: 'from-violet-500 to-purple-600' }
+        { id: 'citizen', icon: 'user-round', title: t.citizen, desc: lang === 'en' ? 'Report civic problems' : t.citizenDesc },
+        { id: 'official', icon: 'landmark', title: t.official, desc: lang === 'en' ? 'Resolve assigned cases' : t.officialDesc },
+        { id: 'admin', icon: 'sliders-horizontal', title: lang === 'en' ? 'Administrator' : t.admin, desc: lang === 'en' ? 'Monitor & manage system' : t.adminDesc }
       ];
+      const currentRole = roles.find(r => r.id === role);
 
       const validate = () => {
         if (!value.trim()) {
@@ -266,6 +306,7 @@
         e.preventDefault();
         if (!validate()) return;
         setLoading(true);
+        setNotice('');
         try {
           const response = await apiRequest('/auth/signin', {
             method: 'POST',
@@ -279,71 +320,230 @@
         }
       };
 
-      if (!role) {
-        return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-primary-900 to-primary-800 px-4 relative overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary-600/20 via-transparent to-transparent"></div>
-            <div className="absolute top-6 right-6 z-10"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
-            
-            <div className="w-full max-w-3xl relative z-10 animate-fade-in">
-              <div className="text-center mb-12">
-                <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-2xl shadow-primary-500/20 mb-6">
-                  <span className="text-primary-700 font-extrabold text-4xl">C</span>
-                </div>
-                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{t.appName}</h1>
-                <p className="mt-3 text-primary-200 text-lg">{t.whoAreYou}</p>
-              </div>
+      const openForgotPassword = () => {
+        setForgotEmail(mode === 'email' ? value.trim() : '');
+        setForgotOtp('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setError('');
+        setNotice('');
+        setAuthStep('forgot-request');
+      };
 
-              <div className="grid sm:grid-cols-3 gap-5">
-                {roles.map((r, i) => (
-                  <button key={r.id} onClick={() => setRole(r.id)}
-                    className="group relative bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-7 text-left hover:bg-white/20 hover:border-white/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${r.color} flex items-center justify-center text-2xl mb-5 shadow-lg`}>
-                      {r.emoji}
+      const requestPasswordReset = async (event) => {
+        event.preventDefault();
+        const email = forgotEmail.trim().toLowerCase();
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+          setError('Enter the email used for this account.');
+          return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+          const response = await apiRequest('/auth/forgot-password/request-otp', {
+            method: 'POST',
+            body: JSON.stringify({ email, requestedRole: role }),
+          });
+          setForgotEmail(email);
+          setForgotOtp('');
+          setNotice(response.message || 'A reset OTP was sent to your registered email.');
+          setAuthStep('forgot-reset');
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const resetPassword = async (event) => {
+        event.preventDefault();
+        if (!/^\d{6}$/.test(forgotOtp)) {
+          setError('Enter the 6-digit reset OTP.');
+          return;
+        }
+        if (newPassword.length < 8) {
+          setError('New password must be at least 8 characters.');
+          return;
+        }
+        if (newPassword !== confirmNewPassword) {
+          setError('Passwords do not match.');
+          return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+          const response = await apiRequest('/auth/forgot-password/reset', {
+            method: 'POST',
+            body: JSON.stringify({ email: forgotEmail.trim().toLowerCase(), otp: forgotOtp, newPassword }),
+          });
+          setValue(forgotEmail.trim().toLowerCase());
+          setPassword('');
+          setNotice(response.message || 'Password updated successfully.');
+          setAuthStep('login');
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (authStep === 'welcome') {
+        return (
+          <div className="auth-screen auth-role-screen">
+            <div className="auth-language"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+            <div className="auth-content auth-role-content animate-fade-in">
+              <AuthBrand />
+              <div className="max-w-2xl mx-auto mt-10 rounded-3xl border border-white/10 bg-white/95 p-7 text-center shadow-2xl sm:p-10">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 text-primary-700 shadow-sm"><Icon name="bot" size={34} /></div>
+                <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-primary-600">AI-powered civic service</p>
+                <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Welcome to the Civic AI Agent</h2>
+                <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-600">Your intelligent civic-response assistant. It helps citizens report issues, routes cases to officials and keeps every resolution transparent.</p>
+                <div className="mt-7 grid gap-3 text-left sm:grid-cols-3">
+                  {[
+                    ['sparkles', 'Smart intake', 'Text, image and GPS complaint capture'],
+                    ['route', 'Autonomous routing', 'Priority and department decisions'],
+                    ['activity', 'Always following up', 'Tracking, escalation and insights'],
+                  ].map(([icon, title, description]) => (
+                    <div key={title} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <Icon name={icon} size={19} className="text-primary-600" />
+                      <strong className="mt-3 block text-sm text-slate-800">{title}</strong>
+                      <span className="mt-1 block text-xs leading-relaxed text-slate-500">{description}</span>
                     </div>
-                    <h3 className="font-semibold text-white text-lg">{r.title}</h3>
-                    <p className="text-sm text-primary-200 mt-1.5 leading-relaxed">{r.desc}</p>
-                    <div className="absolute top-5 right-5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Icon name="arrow-right" size={18} className="text-white" />
-                    </div>
-                  </button>
-                ))}
+                  ))}
+                </div>
+                <button type="button" onClick={() => setAuthStep('role')} className="auth-submit mt-8">Enter Civic AI Agent <Icon name="arrow-right" size={18} /></button>
               </div>
             </div>
           </div>
         );
       }
 
-      const currentRole = roles.find(r => r.id === role);
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-primary-900 to-primary-800 px-4 relative">
-          <div className="absolute top-6 right-6 z-10"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
-          
-          <div className="w-full max-w-md relative z-10 animate-slide-up">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-xl mb-4">
-                <span className="text-primary-700 font-extrabold text-3xl">C</span>
+      // Recover safely if a stale session or an unexpected navigation reaches
+      // authentication without a valid role selected.
+      if (authStep === 'role' || !currentRole) {
+        return (
+          <div className="auth-screen auth-role-screen">
+            <div className="auth-language"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+            <div className="auth-content auth-role-content animate-fade-in">
+              <AuthBrand />
+              <p className="auth-prompt">{lang === 'en' ? 'Which role are you going to use?' : t.whoAreYou}</p>
+              <div className="auth-role-grid">
+                {roles.map(r => (
+                  <button type="button" key={r.id} onClick={() => { setRole(r.id); setAuthStep('access'); }} className={`auth-role-card auth-role-card-${r.id}`}>
+                    <div className="auth-role-icon"><Icon name={r.icon} size={21} /></div>
+                    <h2>{r.title}</h2>
+                    <p>{r.desc}</p>
+                  </button>
+                ))}
               </div>
-              <h1 className="text-2xl font-bold text-white">{t.appName}</h1>
-              <div className="mt-3 inline-flex items-center gap-2 bg-white/15 backdrop-blur text-white px-4 py-1.5 rounded-full text-sm font-medium">
-                <span>{currentRole.emoji}</span>
-                <span>{currentRole.title}</span>
+              <button type="button" onClick={() => setAuthStep('welcome')} className="mx-auto mt-8 block text-sm font-semibold text-primary-100 hover:text-white">← Back to welcome</button>
+            </div>
+          </div>
+        );
+      }
+
+      if (authStep === 'access' && currentRole) {
+        return (
+          <div className="auth-screen auth-login-screen">
+            <div className="auth-language"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+            <div className="auth-content auth-login-content animate-slide-up">
+              <AuthBrand compact />
+              <div className={`auth-role-pill auth-role-pill-${role}`}><Icon name={currentRole.icon} size={15} /><span>{currentRole.title}</span></div>
+              <div className="auth-panel">
+                <div className="text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-700"><Icon name="shield-check" size={24} /></div>
+                  <h2 className="mt-5 text-2xl font-bold text-slate-900">How would you like to continue?</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-500">The Civic AI Agent will open the correct workspace for your selected role.</p>
+                  {role === 'official' && <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-left text-xs leading-relaxed text-amber-800"><strong>Government official login:</strong> use this sign-in button after your account has been approved by the administrator.</p>}
+                </div>
+                <div className="mt-7 space-y-3">
+                  <button type="button" onClick={() => { setAuthStep('login'); setMode('email'); setValue(''); setPassword(''); setError(''); }} className="auth-submit"><Icon name="log-in" size={18} /> Sign in as {currentRole.title}</button>
+                  {role !== 'admin' && <button type="button" onClick={() => onSignup(role)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3.5 text-sm font-semibold text-primary-700 transition-colors hover:bg-primary-100"><Icon name="user-plus" size={18} /> Create {currentRole.title} account</button>}
+                  <button type="button" onClick={() => { setRole(null); setAuthStep('role'); }} className="w-full pt-2 text-sm font-semibold text-slate-500 hover:text-primary-700">Choose another role</button>
+                </div>
               </div>
             </div>
+          </div>
+        );
+      }
 
-            <div className="bg-white rounded-3xl shadow-2xl p-8">
-              <div className="flex items-center justify-between mb-7">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{t.welcome}</h2>
-                  <p className="text-slate-500 text-sm mt-1">{t.enterDetails}</p>
+      if (authStep === 'forgot-request' || authStep === 'forgot-reset') {
+        const enteringNewPassword = authStep === 'forgot-reset';
+        return (
+          <div className="auth-screen auth-login-screen">
+            <div className="auth-language"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+            <div className="auth-content auth-login-content animate-slide-up">
+              <AuthBrand compact />
+              <div className={`auth-role-pill auth-role-pill-${role}`}><Icon name={currentRole.icon} size={15} /><span>{currentRole.title}</span></div>
+              <div className="auth-panel">
+                <div className="auth-panel-header">
+                  <h2>{enteringNewPassword ? 'Create a new password' : 'Forgot password?'}</h2>
+                  <p>{enteringNewPassword ? 'Enter the OTP sent to your registered email address.' : 'We will send a one-time reset code to your registered email.'}</p>
                 </div>
-                <button onClick={() => { setRole(null); setMode('email'); setValue(''); setError(''); }}
-                  className="text-sm text-primary-600 hover:text-primary-700 font-medium hover:underline">
-                  {t.changeRole}
-                </button>
+                {notice && <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-800">{notice}</div>}
+                {enteringNewPassword ? (
+                  <form onSubmit={resetPassword} className="auth-form space-y-5">
+                    <div>
+                      <label>Registered email</label>
+                      <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="mail" size={18} /></span><input className="auth-input" type="email" value={forgotEmail} onChange={event => setForgotEmail(event.target.value)} autoComplete="email" /></div>
+                    </div>
+                    <div>
+                      <label>Email reset OTP</label>
+                      <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="key-round" size={18} /></span><input className="auth-input" inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={forgotOtp} onChange={event => setForgotOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Enter 6-digit OTP" autoFocus /></div>
+                    </div>
+                    <div>
+                      <label>New password</label>
+                      <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="lock" size={18} /></span><input className="auth-input" type="password" minLength="8" value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" /></div>
+                    </div>
+                    <div>
+                      <label>Confirm new password</label>
+                      <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="lock-keyhole" size={18} /></span><input className="auth-input" type="password" minLength="8" value={confirmNewPassword} onChange={event => setConfirmNewPassword(event.target.value)} autoComplete="new-password" /></div>
+                    </div>
+                    {error && <p className="text-sm text-red-600 flex items-center gap-1.5"><Icon name="alert-circle" size={14} /> {error}</p>}
+                    <button type="submit" disabled={loading} className="auth-submit">{loading ? (<><Icon name="loader-2" size={20} className="animate-spin" /> Updating password...</>) : (<><Icon name="check" size={18} /> Update password</>)}</button>
+                    <button type="button" onClick={() => { setAuthStep('forgot-request'); setError(''); setNotice(''); }} className="w-full text-sm font-semibold text-slate-500 hover:text-primary-700">Request a new OTP</button>
+                  </form>
+                ) : (
+                  <form onSubmit={requestPasswordReset} className="auth-form space-y-5">
+                    <div>
+                      <label>Registered email</label>
+                      <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="mail" size={18} /></span><input className="auth-input" type="email" value={forgotEmail} onChange={event => setForgotEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" autoFocus /></div>
+                    </div>
+                    {error && <p className="text-sm text-red-600 flex items-center gap-1.5"><Icon name="alert-circle" size={14} /> {error}</p>}
+                    <button type="submit" disabled={loading} className="auth-submit">{loading ? (<><Icon name="loader-2" size={20} className="animate-spin" /> Sending OTP...</>) : (<><Icon name="mail" size={18} /> Send reset OTP</>)}</button>
+                  </form>
+                )}
+                <button type="button" onClick={() => { setAuthStep('login'); setError(''); setNotice(''); }} className="mt-5 w-full text-sm font-semibold text-slate-500 hover:text-primary-700">Back to {currentRole.title} sign in</button>
               </div>
+            </div>
+          </div>
+        );
+      }
 
-              <div className="flex bg-slate-100 rounded-xl p-1 mb-6">
+      return (
+        <div className="auth-screen auth-login-screen">
+          <div className="auth-language"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+
+          <div className="auth-content auth-login-content animate-slide-up">
+            <AuthBrand compact />
+            <div className={`auth-role-pill auth-role-pill-${role}`}><Icon name={currentRole.icon} size={15} /><span>{currentRole.title}</span></div>
+
+            <div className="auth-panel">
+                <div className="auth-panel-header flex items-center justify-between mb-7">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900">{t.welcome}</h2>
+                    <p className="text-slate-500 text-sm mt-1">{t.enterDetails}</p>
+                  </div>
+                  <button onClick={() => { setRole(null); setAuthStep('role'); setMode('email'); setValue(''); setError(''); }}
+                    className="auth-change-role text-sm text-primary-600 hover:text-primary-700 font-medium hover:underline">
+                    {t.changeRole}
+                  </button>
+                </div>
+                {notice && <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-800">{notice}</div>}
+
+                {role === 'official' && <div className="mb-6 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800"><strong>Official account:</strong> enter the email and password from your approved government-official account. Accounts awaiting admin approval cannot sign in yet.</div>}
+
+              <div className="auth-tabs flex bg-slate-100 rounded-xl p-1 mb-6">
                 <button type="button" onClick={() => { setMode('email'); setValue(''); setPassword(''); setError(''); }}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${mode === 'email' ? 'bg-white shadow text-primary-700' : 'text-slate-500 hover:text-slate-700'}`}>
                   {t.emailId}
@@ -354,7 +554,7 @@
                 </button>}
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="auth-form space-y-5">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
                     {mode === 'email' ? t.emailAddress : t.mobileNumber}
@@ -364,11 +564,11 @@
                       <Icon name={mode === 'email' ? 'mail' : 'smartphone'} size={18} />
                     </span>
                     <input
+                      className="auth-input"
                       type={mode === 'email' ? 'email' : 'tel'}
                       value={value}
                       onChange={e => setValue(e.target.value)}
                       placeholder={mode === 'email' ? 'you@example.com' : '9876543210'}
-                      className="w-full rounded-xl border border-slate-200 pl-11 pr-4 py-3.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all bg-slate-50 focus:bg-white"
                       autoFocus
                     />
                   </div>
@@ -378,30 +578,37 @@
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="lock" size={18} /></span>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password"
-                      className="w-full rounded-xl border border-slate-200 pl-11 pr-4 py-3.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all bg-slate-50 focus:bg-white" />
+                    <input className="auth-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" />
                   </div>
                 </div>
+                <div className="flex justify-end -mt-2"><button type="button" onClick={openForgotPassword} className="text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline">Forgot password?</button></div>
 
-                <button type="submit" disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 disabled:opacity-70">
+                <button type="submit" disabled={loading} className="auth-submit">
                   {loading ? (<><Icon name="loader-2" size={20} className="animate-spin" /> {t.signingIn}</>) : (<><Icon name="log-in" size={18} /> {t.continueAs} {currentRole.title}</>)}
                 </button>
               </form>
-              <p className="mt-6 text-center text-xs text-slate-400">{t.terms}</p>
-              {role !== 'admin' && <button type="button" onClick={onSignup} className="mt-4 w-full text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline">
+              <p className="auth-terms mt-6 text-center text-xs text-slate-400">{t.terms}</p>
+              {role !== 'admin' && <button type="button" onClick={() => onSignup(role)} className="auth-signup-link mt-4 w-full text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline">
                 New here? Create an account
               </button>}
             </div>
-            <p className="mt-6 text-center text-primary-200/80 text-sm">{t.demoNote}</p>
+            <p className="auth-demo mt-6 text-center text-primary-200/80 text-sm">{t.demoNote}</p>
           </div>
         </div>
       );
     }
 
     // ========== SIGNUP ==========
-    function Signup({ onBack, lang, setLang }) {
-      const [form, setForm] = useState({ name: '', email: '', phone: '', location: '', latitude: null, longitude: null, password: '', confirmPassword: '', role: 'citizen' });
+    function Signup({ onBack, lang, setLang, initialRole = 'citizen' }) {
+      const selectedRole = initialRole === 'official' ? 'official' : 'citizen';
+      const officialDepartments = [
+        { value: 'Public Works Department', label: 'Public Works Department — Roads & Potholes' },
+        { value: 'Water and Drainage Department', label: 'Water and Drainage Department — Drainage & Water Supply' },
+        { value: 'Solid Waste Management', label: 'Solid Waste Management — Garbage & Sanitation' },
+        { value: 'Electrical Department', label: 'Electrical Department — Streetlights' },
+        { value: 'Public Facilities Department', label: 'Public Facilities Department — Parks & Public Facilities' },
+      ];
+      const [form, setForm] = useState({ name: '', email: '', phone: '', department: '', location: '', latitude: null, longitude: null, password: '', confirmPassword: '', role: selectedRole });
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
       const [success, setSuccess] = useState(false);
@@ -423,6 +630,14 @@
           setError('Please enter your location or choose your current location.');
           return;
         }
+        if (selectedRole === 'official' && !form.department) {
+          setError('Please select the department you work for.');
+          return;
+        }
+        if (selectedRole === 'official' && (form.latitude === null || form.longitude === null)) {
+          setError('Government officials must choose their current office GPS location.');
+          return;
+        }
         setLoading(true);
         try {
           const response = await apiRequest('/auth/signup/request-otp', {
@@ -431,6 +646,7 @@
               name: form.name,
               email: form.email,
               phone: form.phone,
+              department: selectedRole === 'official' ? form.department : '',
               location: form.location,
               coordinates: form.latitude !== null && form.longitude !== null ? { latitude: form.latitude, longitude: form.longitude } : null,
               password: form.password,
@@ -466,15 +682,15 @@
       };
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-primary-900 to-primary-800 px-4 py-8 relative">
-          <div className="absolute top-6 right-6 z-10"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
-          <div className="w-full max-w-md relative z-10 animate-slide-up">
+        <div className="auth-screen auth-signup-screen">
+          <div className="auth-language"><LanguageSwitcher lang={lang} setLang={setLang} dark={true} /></div>
+          <div className="auth-content auth-signup-content animate-slide-up">
             <div className="text-center mb-7">
               <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-xl mb-4">
                 <span className="text-primary-700 font-extrabold text-3xl">C</span>
               </div>
-              <h1 className="text-2xl font-bold text-white">Create your account</h1>
-              <p className="mt-2 text-primary-200">Join CivicResolve and track your civic reports.</p>
+              <h1 className="text-2xl font-bold text-white">Create your {selectedRole === 'official' ? 'Government Official' : 'Citizen'} account</h1>
+              <p className="mt-2 text-primary-200">Join CivicResolve with the role selected in the Civic AI Agent.</p>
             </div>
 
             <div className="bg-white rounded-3xl shadow-2xl p-7 sm:p-8">
@@ -533,11 +749,20 @@
                     <input required type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
                   </div>
+                  {selectedRole === 'official' && <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Responsible department *</label>
+                    <select required value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white">
+                      <option value="">Select your department</option>
+                      {officialDepartments.map(department => <option key={department.value} value={department.value}>{department.label}</option>)}
+                    </select>
+                    <p className="mt-1.5 text-xs text-slate-500">The agent will send only matching civic cases to your department.</p>
+                  </div>}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Location</label>
+                     <label className="block text-sm font-semibold text-slate-700 mb-2">{selectedRole === 'official' ? 'Government office location (GPS required)' : 'Location'}</label>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input required type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value, latitude: null, longitude: null })}
-                        placeholder="Area, city or landmark"
+                         placeholder={selectedRole === 'official' ? 'Office address, area or landmark' : 'Area, city or landmark'}
                         className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white" />
                       <button type="button" onClick={() => {
                         if (!navigator.geolocation) { setError('Location is not supported by this browser.'); return; }
@@ -546,18 +771,15 @@
                           () => setError('Unable to access your current location. Please enter it manually.'),
                         );
                       }} className="shrink-0 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-700 hover:bg-primary-100">
-                        Use current location
+                          {selectedRole === 'official' ? 'Use my current office location' : 'Use my current location'}
                       </button>
                     </div>
-                    {(form.latitude !== null && form.longitude !== null) && <p className="mt-1.5 text-xs text-emerald-600">Current location selected.</p>}
+                     {(form.latitude !== null && form.longitude !== null) && <p className="mt-1.5 text-xs text-emerald-600">Current location selected.</p>}
+                     {selectedRole === 'official' && <p className="mt-1.5 text-xs text-slate-500">The agent uses this office GPS to automatically accept nearby complaints.</p>}
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Account type</label>
-                    <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white">
-                      <option value="citizen">Citizen</option>
-                      <option value="official">Government Official</option>
-                    </select>
+                  <div className="flex items-center gap-3 rounded-xl border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-800">
+                    <Icon name={selectedRole === 'official' ? 'landmark' : 'user-round'} size={19} />
+                    <span>Signing up as <strong>{selectedRole === 'official' ? 'Government Official' : 'Citizen'}</strong></span>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
@@ -683,6 +905,103 @@
       );
     }
 
+    function CitizenAssistanceChat({ displayName }) {
+      const [messages, setMessages] = useState([
+        { role: 'assistant', text: `Hi ${displayName}! I am your AI Assistance Agent. Ask me how your case is going, how much work is complete, which department has it, or what happens next.` },
+      ]);
+      const [input, setInput] = useState('');
+      const [sending, setSending] = useState(false);
+
+      const ask = async (question = input) => {
+        const text = String(question || '').trim();
+        if (!text || sending) return;
+        setMessages(previous => [...previous, { role: 'user', text }]);
+        setInput('');
+        setSending(true);
+        try {
+          const response = await apiRequest('/citizen/assistant', {
+            method: 'POST',
+            body: JSON.stringify({ message: text }),
+          });
+          setMessages(previous => [...previous, { role: 'assistant', text: response.reply || 'I could not prepare an answer right now.' }]);
+        } catch (error) {
+          setMessages(previous => [...previous, { role: 'assistant', text: `I could not access your case information: ${error.message}` }]);
+        } finally {
+          setSending(false);
+        }
+      };
+
+      return (
+        <div className="mt-5 border-t border-slate-100 pt-5 text-left">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-700"><Icon name="message-circle" size={20} /></div>
+            <div>
+              <h3 className="font-bold text-slate-900">AI Assistance</h3>
+              <p className="mt-1 text-xs text-slate-500">Chat with the agent about your own complaint progress.</p>
+            </div>
+          </div>
+          <div className="mt-4 max-h-64 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3">
+            {messages.map((item, index) => <div key={`${item.role}-${index}`} className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[90%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm leading-relaxed ${item.role === 'user' ? 'bg-primary-700 text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>{item.text}</div>
+            </div>)}
+            {sending && <div className="flex items-center gap-2 text-xs text-slate-500"><Icon name="loader-2" size={14} className="animate-spin" /> AI Assistance is checking your case records...</div>}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {['How is my latest case going?', 'How much is completed?', 'Which department has my case?'].map(question => <button key={question} type="button" onClick={() => ask(question)} disabled={sending} className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50">{question}</button>)}
+          </div>
+          <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2">
+            <input value={input} onChange={event => setInput(event.target.value)} disabled={sending} placeholder="Ask about your case..." className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500" />
+            <button type="submit" disabled={!input.trim() || sending} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"><Icon name="send" size={16} /> Ask</button>
+          </form>
+        </div>
+      );
+    }
+
+    function ComplaintDetailCard({ record, title = 'Case details', onClose }) {
+      if (!record) return null;
+      const progress = record.status === 'Resolved' ? 100 : Number(record.progressPercent) || 0;
+      const gps = record.coordinates || record.reporter?.coordinates || record.agentDecision?.locationEvidence?.coordinates;
+      const description = record.agentGeneratedDescription || record.agent?.generatedDescription || record.description || record.summary;
+      const brief = record.agentOfficialBrief || record.agent?.officialBrief || record.summary;
+      const timeline = record.timeline || [];
+      return (
+        <section className="mt-5 rounded-3xl border border-primary-100 bg-white p-5 text-left shadow-soft sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <p className="font-mono text-sm font-bold text-primary-700">{record.id}</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-900">{title}</h3>
+              <p className="mt-1 text-sm text-slate-500">{record.category} · {record.status}</p>
+            </div>
+            {onClose && <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Close details</button>}
+          </div>
+          <div className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div><span className="block text-slate-500">Location</span><strong className="text-slate-800">{record.location || 'Pending'}</strong>{gps && <span className="mt-1 block text-xs text-slate-500">GPS: {Number(gps.latitude).toFixed(6)}, {Number(gps.longitude).toFixed(6)}</span>}</div>
+            <div><span className="block text-slate-500">Department / team</span><strong className="text-slate-800">{record.department || 'Pending agent routing'}</strong><span className="mt-1 block text-xs text-slate-500">{record.team || record.workOrder?.team || 'Civic response team'}</span></div>
+            <div><span className="block text-slate-500">Priority / impact</span><strong className="text-orange-600">{record.priority || 'Pending'} · {record.impactScore ?? '—'}/100</strong><span className="mt-1 block text-xs text-slate-500">Urgency: {record.urgency || 'medium'}</span></div>
+            <div><span className="block text-slate-500">Agent progress</span><strong className="text-slate-800">{progress}% solved</strong><span className="mt-1 block text-xs text-slate-500">ETA: {record.eta || 'Official review pending'}</span></div>
+            <div><span className="block text-slate-500">Duplicate / similar cases</span><strong className="text-slate-800">{record.duplicates || 0} found</strong><span className="mt-1 block text-xs text-slate-500">Investigation Agent memory check</span></div>
+            <div><span className="block text-slate-500">Assigned official</span><strong className="text-slate-800">{record.assignedTo?.name || 'Government official queue'}</strong><span className="mt-1 block text-xs text-slate-500">{record.officialHandoff?.status || 'Queued'}</span></div>
+          </div>
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+              <h4 className="font-semibold text-violet-900">Agent-generated complaint description</h4>
+              <p className="mt-2 line-clamp-5 whitespace-pre-line text-sm leading-relaxed text-slate-700">{description}</p>
+              {record.agentGeneratedDescription && <details className="mt-3"><summary className="cursor-pointer text-xs font-semibold text-violet-700">Read complete description</summary><p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{record.agentGeneratedDescription}</p></details>}
+            </div>
+            <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
+              <h4 className="font-semibold text-primary-900">Official brief and AI decision</h4>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700">{brief}</p>
+              {record.agent?.trace?.length > 0 && <div className="mt-3 space-y-2">{record.agent.trace.map(step => <p key={step.id} className="text-xs leading-relaxed text-slate-600"><strong className="text-slate-800">{step.title}:</strong> {step.detail}</p>)}</div>}
+            </div>
+          </div>
+          {record.photoDataUrl && <div className="mt-5"><h4 className="mb-2 font-semibold text-slate-900">Citizen photo evidence</h4><img src={record.photoDataUrl} alt="Citizen complaint evidence" className="max-h-64 rounded-2xl border border-slate-200 object-contain" /></div>}
+          {record.progressAnalysis && <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4"><h4 className="font-semibold text-blue-900">Official update analyzed by agent</h4><p className="mt-2 text-sm text-blue-900">{record.progressAnalysis.summary}</p><p className="mt-2 text-sm text-blue-800"><strong>Image analysis:</strong> {record.progressAnalysis.visibleEvidence}</p><p className="mt-2 text-sm text-slate-700"><strong>Remaining work:</strong> {record.progressAnalysis.remainingWork}</p></div>}
+          {record.workOrder?.tasks?.length > 0 && <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/70 p-4"><h4 className="font-semibold text-amber-900">Work order: {record.workOrder.id}</h4><div className="mt-2 grid gap-2 sm:grid-cols-2">{record.workOrder.tasks.map(task => <div key={task.id} className="rounded-xl bg-white px-3 py-2 text-xs text-slate-700"><strong>{task.status}</strong> · {task.title}</div>)}</div></div>}
+          {!!timeline.length && <div className="mt-5"><h4 className="mb-3 font-semibold text-slate-900">Agent and official timeline</h4><div className="space-y-3">{timeline.slice().reverse().map((item, index) => <div key={`${item.time}-${index}`} className="flex gap-3"><Icon name={item.done ? 'check-circle-2' : 'clock-3'} size={16} className="mt-0.5 shrink-0 text-emerald-600" /><div><p className="text-sm font-semibold text-slate-800">{item.title}</p><p className="text-xs leading-relaxed text-slate-600">{item.desc}</p><p className="mt-1 text-[11px] text-slate-400">{item.time}</p></div></div>)}</div></div>}
+        </section>
+      );
+    }
+
     // ========== HOME ==========
     function Home({ setPage, user, lang }) {
       const t = translations[lang];
@@ -700,6 +1019,32 @@
         admin: { title: t.welcomeAdmin, subtitle: t.adminSubtitle }
       };
       const welcome = welcomeMap[user.role] || welcomeMap.citizen;
+      const [showPastComplaints, setShowPastComplaints] = useState(false);
+      const [selectedCitizenComplaint, setSelectedCitizenComplaint] = useState(null);
+      const [citizenComplaints, setCitizenComplaints] = useState([]);
+      const [citizenComplaintsLoading, setCitizenComplaintsLoading] = useState(false);
+      const [citizenComplaintsError, setCitizenComplaintsError] = useState('');
+      const [citizenNotifications, setCitizenNotifications] = useState([]);
+      const displayName = String(user.name || user.identifier || 'Citizen').trim().split(/\s+/)[0] || 'Citizen';
+
+      useEffect(() => {
+        if (user.role !== 'citizen') return undefined;
+        let active = true;
+        const loadCitizenUpdates = () => {
+          setCitizenComplaintsLoading(true);
+          Promise.all([apiRequest('/citizen/complaints'), apiRequest('/citizen/notifications')])
+            .then(([records, notifications]) => {
+              if (!active) return;
+              setCitizenComplaints(Array.isArray(records) ? records : []);
+              setCitizenNotifications(Array.isArray(notifications) ? notifications : []);
+            })
+            .catch(error => { if (active) setCitizenComplaintsError(error.message); })
+            .finally(() => { if (active) setCitizenComplaintsLoading(false); });
+        };
+        loadCitizenUpdates();
+        const refreshTimer = setInterval(loadCitizenUpdates, 30000);
+        return () => { active = false; clearInterval(refreshTimer); };
+      }, [user.role]);
 
       return (
         <div className="animate-fade-in">
@@ -710,16 +1055,53 @@
               <p className="mt-5 text-lg text-primary-100 leading-relaxed max-w-2xl">{welcome.subtitle}</p>
               <div className="mt-9 flex flex-col sm:flex-row gap-4">
                 {user.role === 'citizen' && (
-                  <>
-                    <button onClick={() => setPage('submit')}
-                      className="inline-flex items-center justify-center px-8 py-3.5 bg-white text-primary-800 font-semibold rounded-2xl shadow-lg hover:bg-primary-50 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
-                      {t.fileAComplaint}
-                    </button>
-                    <button onClick={() => setPage('track')}
-                      className="inline-flex items-center justify-center px-8 py-3.5 bg-white/10 border border-white/30 text-white font-semibold rounded-2xl hover:bg-white/20 transition-all duration-300">
-                      {t.trackYourCase}
-                    </button>
-                  </>
+                  <div className="w-full max-w-4xl rounded-3xl border border-white/20 bg-white p-5 text-slate-800 shadow-2xl sm:p-7">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-700"><Icon name="bot" size={23} /></div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-600">Civic AI Agent</p>
+                        <h2 className="mt-1 text-xl font-bold text-slate-900">Hi, {displayName}! What’s about today?</h2>
+                        <p className="mt-1 text-sm text-slate-500">I can register a photo-based complaint automatically or show your complete complaint history.</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                      <button onClick={() => setPage('submit')} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary-700 px-6 py-3.5 font-semibold text-white shadow-lg transition hover:bg-primary-800"><Icon name="camera" size={18} /> File a complaint</button>
+                      <button onClick={() => setShowPastComplaints(value => !value)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 font-semibold text-primary-700 transition hover:bg-primary-50"><Icon name="history" size={18} /> {showPastComplaints ? 'Hide past complaints' : 'See past complaints'}</button>
+                    </div>
+                    <CitizenAssistanceChat displayName={displayName} />
+                    {!!citizenNotifications.length && <div className="mt-5 space-y-2 border-t border-slate-100 pt-5 text-left">
+                      <h3 className="flex items-center gap-2 font-bold text-slate-900"><Icon name="bell-ring" size={17} className="text-primary-600" /> Agent notifications</h3>
+                      {citizenNotifications.slice(0, 3).map(notification => <div key={notification.notificationId} className={`rounded-2xl border px-4 py-3 ${notification.type === 'case-resolved' ? 'border-emerald-200 bg-emerald-50' : 'border-blue-100 bg-blue-50'}`}>
+                        <div className="flex items-start justify-between gap-3"><strong className="text-sm text-slate-800">{notification.title}</strong><span className="text-[11px] text-slate-500">{notification.createdAt ? new Date(notification.createdAt).toLocaleString() : ''}</span></div>
+                        <p className="mt-1 text-sm text-slate-600">{notification.message}</p>
+                      </div>)}
+                    </div>}
+                    {showPastComplaints && <div className="mt-5 border-t border-slate-100 pt-5 text-left">
+                      <div className="flex items-center justify-between gap-3"><h3 className="font-bold text-slate-900">Your complaint history</h3><span className="text-xs font-semibold text-slate-500">{citizenComplaints.length} case{citizenComplaints.length === 1 ? '' : 's'}</span></div>
+                      {citizenComplaintsLoading && <p className="mt-4 text-sm text-slate-500">Loading your complaints from the database...</p>}
+                      {citizenComplaintsError && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{citizenComplaintsError}</p>}
+                      {!citizenComplaintsLoading && !citizenComplaintsError && citizenComplaints.length === 0 && <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">You have no past complaints yet.</p>}
+                      <div className="mt-4 space-y-3">
+                         {citizenComplaints.map(record => <article key={record.id} onClick={() => setSelectedCitizenComplaint(record)} className={`cursor-pointer rounded-2xl border p-4 transition hover:border-primary-200 hover:bg-primary-50/30 ${selectedCitizenComplaint?.id === record.id ? 'border-primary-300 bg-primary-50/40' : 'border-slate-100 bg-slate-50'}`}>
+                           <div className="flex flex-wrap items-center justify-between gap-2"><strong className="font-mono text-sm text-primary-700">{record.id}</strong><span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{record.status}</span></div>
+                          <p className="mt-3 text-sm font-semibold text-slate-800">{record.summary || record.description || 'Photo complaint submitted for agent review.'}</p>
+                          <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                            <span><strong>Category:</strong> {record.category}</span><span><strong>Department:</strong> {record.department}</span>
+                             <span><strong>Team:</strong> {record.team || record.workOrder?.team || 'Civic response team'}</span><span><strong>Priority:</strong> {record.priority} ({record.impactScore}/100)</span>
+                             <span><strong>Progress:</strong> {record.progressPercent || 0}% solved</span>
+                            <span><strong>Urgency:</strong> {record.urgency || 'medium'} · <strong>Duplicates:</strong> {record.duplicates || 0}</span><span><strong>Response ETA:</strong> {record.eta || 'Pending agent review'}</span>
+                            <span><strong>Work order:</strong> {record.workOrder?.status || 'Created by agent'}</span><span><strong>Location:</strong> {record.location}</span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500"><strong>Evidence:</strong> {record.photoDataUrl ? 'Photo attached' : 'Text report'} · {record.reporter?.coordinates || record.agentDecision?.locationEvidence?.coordinates ? 'GPS captured' : 'Manual location'}</p>
+                          {record.agent?.citizenMessage && <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-600"><strong>Agent explanation:</strong> {record.agent.citizenMessage}</p>}
+                          {record.agentDecision?.escalation && <p className="mt-2 text-xs text-amber-700"><strong>Follow-up:</strong> {record.agentDecision.escalation}</p>}
+                           {!!record.agentDecision?.recommendedActions?.length && <p className="mt-2 text-xs text-slate-600"><strong>Agent plan:</strong> {record.agentDecision.recommendedActions.join(' · ')}</p>}
+                           <p className="mt-3 text-xs font-semibold text-primary-700"><Icon name="external-link" size={13} className="mr-1 inline" /> Open complete case details</p>
+                         </article>)}
+                       </div>
+                       {selectedCitizenComplaint && <ComplaintDetailCard record={selectedCitizenComplaint} title="Citizen case details" onClose={() => setSelectedCitizenComplaint(null)} />}
+                     </div>}
+                  </div>
                 )}
                 {user.role === 'official' && (
                   <button onClick={() => setPage('dashboard')}
@@ -786,11 +1168,16 @@
     function SubmitComplaint({ lang, user }) {
       const t = translations[lang];
       const [form, setForm] = useState({ category: '', description: '', location: '', urgency: 'medium', name: user?.name || '', phone: user?.phone || '' });
+      const [coordinates, setCoordinates] = useState(user?.coordinates || null);
       const [imagePreview, setImagePreview] = useState(null);
       const [submitting, setSubmitting] = useState(false);
       const [success, setSuccess] = useState(null);
       const [aiResult, setAiResult] = useState(null);
+      const [agentPreview, setAgentPreview] = useState(null);
+      const [agentLoading, setAgentLoading] = useState(false);
       const [submitError, setSubmitError] = useState('');
+      const [locationLoading, setLocationLoading] = useState(false);
+      const [locationMessage, setLocationMessage] = useState('');
       const [isListening, setIsListening] = useState(false);
       const recognitionRef = useRef(null);
 
@@ -832,25 +1219,106 @@
 
       const handleImage = (e) => {
         const file = e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = () => setImagePreview(reader.result);
-          reader.readAsDataURL(file);
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+          setSubmitError('Please upload an image file.');
+          return;
+        }
+        if (file.size > 4_000_000) {
+          setSubmitError('Please choose a photo smaller than 4 MB.');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          setImagePreview(reader.result);
+          setSubmitError('');
+            setLocationMessage('Photo ready. Enter the complaint location or choose your current location.');
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const formatGpsLocation = (nextCoordinates) => `GPS location (${nextCoordinates.latitude.toFixed(5)}, ${nextCoordinates.longitude.toFixed(5)})`;
+
+      const captureLocation = ({ silent = false } = {}) => {
+        if (!navigator.geolocation) {
+          if (!silent) setLocationMessage('GPS is not supported by this browser.');
+          return Promise.resolve(null);
+        }
+        setLocationLoading(true);
+        if (!silent) setLocationMessage('Requesting your current location...');
+        return new Promise(resolve => navigator.geolocation.getCurrentPosition(
+          position => {
+            const nextCoordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy };
+            setCoordinates(nextCoordinates);
+            setForm(prev => ({ ...prev, location: prev.location.trim() || formatGpsLocation(nextCoordinates) }));
+            setLocationMessage(`Agent GPS selected: accuracy approximately ${Math.round(position.coords.accuracy)} metres.`);
+            setLocationLoading(false);
+            resolve(nextCoordinates);
+          },
+          error => {
+            setLocationMessage(error.code === 1 ? 'GPS permission was denied. You can enter the landmark manually.' : 'Unable to capture GPS. You can enter the landmark manually.');
+            setLocationLoading(false);
+            resolve(null);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+        ));
+      };
+
+      const ensureAgentLocation = async () => {
+        const activeCoordinates = coordinates || await captureLocation({ silent: true });
+        const activeLocation = form.location.trim() || (activeCoordinates ? formatGpsLocation(activeCoordinates) : '');
+        return { activeCoordinates, activeLocation };
+      };
+
+      const runAgentPreview = async (providedImage = imagePreview) => {
+        if (!form.category && !form.description.trim() && !providedImage) {
+          setSubmitError('Add a complaint photo or text description before running the agent.');
+          return;
+        }
+        setAgentLoading(true);
+        setSubmitError('');
+        try {
+          const { activeCoordinates, activeLocation } = await ensureAgentLocation();
+          if (!activeLocation) throw new Error('The agent needs GPS permission or a landmark to locate this complaint.');
+          const preview = await apiRequest('/agent/preview', {
+            method: 'POST',
+            body: JSON.stringify({ category: form.category, description: form.description, location: activeLocation, urgency: form.urgency, photoDataUrl: providedImage || '', coordinates: activeCoordinates || null }),
+          });
+          setAgentPreview(preview);
+        } catch (error) {
+          setSubmitError(error.message);
+        } finally {
+          setAgentLoading(false);
         }
       };
 
-      const handleSubmit = async (e) => {
-        e.preventDefault();
+      const submitComplaint = async (providedImage = imagePreview) => {
+        if (!providedImage) {
+          setSubmitError('Upload a complaint photo before submitting.');
+          return;
+        }
+        const citizenLocation = form.location.trim();
+        if (user?.role === 'citizen' && !citizenLocation && !coordinates) {
+          setSubmitError('Enter the complaint location or choose your current location so the agent can route the case.');
+          return;
+        }
         setSubmitting(true);
         setSubmitError('');
+        setLocationMessage(user?.role === 'citizen' ? 'Location received. Response Agent is analyzing your photo...' : 'Response Agent is capturing GPS and analyzing your photo...');
         try {
+          const { activeCoordinates, activeLocation } = user?.role === 'citizen'
+            ? { activeCoordinates: coordinates, activeLocation: citizenLocation || (coordinates ? formatGpsLocation(coordinates) : '') }
+            : await ensureAgentLocation();
+          if (!activeLocation) throw new Error(user?.role === 'citizen' ? 'Enter the complaint location or choose your current location so the agent can route the case.' : 'GPS permission is required so the agent can locate this complaint.');
           const complaint = await apiRequest('/complaints', {
             method: 'POST',
             body: JSON.stringify({
               ...form,
+              location: activeLocation,
+              coordinates: activeCoordinates || null,
               name: form.name || user?.name || '',
               phone: form.phone || user?.phone || '',
-              photoDataUrl: imagePreview || '',
+              photoDataUrl: providedImage || '',
               reporter: user ? {
                 identifier: user.identifier,
                 type: user.type,
@@ -859,7 +1327,7 @@
                 email: user.email || '',
                 phone: user.phone || '',
                 location: user.location || '',
-                coordinates: user.coordinates || null,
+                coordinates: activeCoordinates || user.coordinates || null,
               } : null,
             }),
           });
@@ -871,6 +1339,12 @@
         } finally {
           setSubmitting(false);
         }
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        await submitComplaint();
+        return;
         /* Legacy mock path; API responses return above.
         await new Promise(r => setTimeout(r, 2200));
         const mockAI = {
@@ -887,6 +1361,10 @@
       };
 
       if (success) {
+        const gpsCoordinates = aiResult?.reporter?.coordinates || aiResult?.agentDecision?.locationEvidence?.coordinates || null;
+        const gpsLabel = gpsCoordinates
+          ? `${Number(gpsCoordinates.latitude).toFixed(6)}, ${Number(gpsCoordinates.longitude).toFixed(6)}`
+          : 'Not captured';
         return (
           <div className="max-w-2xl mx-auto px-4 py-16 animate-slide-up">
             <div className="bg-white rounded-3xl shadow-soft-lg border border-slate-100 p-8 sm:p-10 text-center">
@@ -895,31 +1373,142 @@
               </div>
               <h2 className="text-2xl font-bold text-slate-900">{t.successTitle}</h2>
               <p className="mt-2 text-slate-500">{t.yourCaseId}</p>
-              <div className="mt-5 inline-block bg-primary-50 text-primary-800 font-mono text-xl font-bold px-6 py-3 rounded-2xl tracking-wide">
-                {success}
-              </div>
-              {aiResult && (
-                <div className="mt-8 text-left bg-slate-50 rounded-2xl p-6 space-y-4">
-                  <h3 className="font-semibold text-slate-800">{t.aiSummary}</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><span className="text-slate-500 block mb-0.5">{t.department}</span><p className="font-medium text-slate-800">{aiResult.department}</p></div>
-                    <div><span className="text-slate-500 block mb-0.5">{t.priority}</span><p className="font-medium text-orange-600">{aiResult.priority}</p></div>
-                    <div><span className="text-slate-500 block mb-0.5">{t.impactScore}</span><p className="font-medium">{aiResult.score}/100</p></div>
-                    <div><span className="text-slate-500 block mb-0.5">{t.expectedResolution}</span><p className="font-medium">{aiResult.eta}</p></div>
+               <div className="mt-5 inline-block bg-primary-50 text-primary-800 font-mono text-xl font-bold px-6 py-3 rounded-2xl tracking-wide">
+                 {success}
+               </div>
+               <div className="mt-5 flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                 <Icon name="send" size={17} /> Automatically submitted to Government Official Queue
+               </div>
+               {aiResult && (
+                 <div className="mt-8 text-left bg-slate-50 rounded-2xl p-6 space-y-4">
+                   <h3 className="font-semibold text-slate-800">{t.aiSummary}</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                       <div className="col-span-2"><span className="text-slate-500 block mb-0.5">Complaint location</span><p className="font-medium text-slate-800">{aiResult.location || 'Location provided by citizen'}</p><p className="text-xs text-slate-500 mt-1">{gpsCoordinates ? `GPS coordinates: ${gpsLabel}` : 'Location provided by citizen; GPS coordinates were not required.'}</p></div>
+                      <div><span className="text-slate-500 block mb-0.5">Photo evidence</span><p className="font-medium text-slate-800">{aiResult.photoDataUrl ? 'Attached and sent to official' : 'Not attached'}</p></div>
+                       <div><span className="text-slate-500 block mb-0.5">Official handoff</span><p className="font-medium text-emerald-700">{aiResult.officialHandoff?.status === 'auto-assigned' ? 'Automatically assigned by location' : aiResult.officialHandoff?.status === 'queued' ? 'Queued for government official' : 'Sent for review'}</p></div>
+                      <div><span className="text-slate-500 block mb-0.5">{t.department}</span><p className="font-medium text-slate-800">{aiResult.department}</p></div>
+                     <div><span className="text-slate-500 block mb-0.5">Responsible team</span><p className="font-medium text-slate-800">{aiResult.team || aiResult.agentDecision?.team || 'Civic response team'}</p></div>
+                     <div><span className="text-slate-500 block mb-0.5">{t.priority}</span><p className="font-medium text-orange-600">{aiResult.priority}</p></div>
+                     <div><span className="text-slate-500 block mb-0.5">{t.impactScore}</span><p className="font-medium">{aiResult.score}/100</p></div>
+                     <div><span className="text-slate-500 block mb-0.5">{t.expectedResolution}</span><p className="font-medium">{aiResult.eta}</p></div>
+                   </div>
+                   {aiResult.agentDecision && <div className="rounded-2xl border border-primary-100 bg-white p-4">
+                     <div className="flex items-center gap-2 text-primary-900 font-semibold"><Icon name="brain-circuit" size={18} /> Complete Response Agent decision</div>
+                     <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                        <div><span className="text-slate-500 block mb-0.5">AI assistance</span><p className="font-medium text-slate-800">{aiResult.agentDecision.category}</p></div>
+                       <div><span className="text-slate-500 block mb-0.5">Urgency</span><p className="font-medium text-red-600">{aiResult.agentDecision.urgency}</p></div>
+                       <div><span className="text-slate-500 block mb-0.5">Duplicate cases</span><p className="font-medium text-slate-800">{aiResult.agentDecision.duplicateCount || 0}</p></div>
+                       <div><span className="text-slate-500 block mb-0.5">GPS evidence</span><p className="font-medium text-slate-800">{aiResult.agentDecision.locationEvidence?.coordinates ? 'Captured' : 'Landmark/manual location'}</p></div>
+                     </div>
+                     <div className="mt-4 space-y-2 text-sm">
+                       <p className="text-slate-700"><strong>Escalation rule:</strong> {aiResult.agentDecision.escalation}</p>
+                       <p className="text-slate-700"><strong>Next agent check:</strong> {aiResult.agentDecision.followUp?.nextCheckAt ? new Date(aiResult.agentDecision.followUp.nextCheckAt).toLocaleString() : 'Scheduled after intake'}</p>
+                     </div>
+                     {!!aiResult.agentDecision.recommendedActions?.length && <div className="mt-4 rounded-xl bg-slate-50 p-3"><strong className="text-sm text-slate-700">Agent recommended actions</strong><ul className="mt-2 space-y-1 text-sm text-slate-600">{aiResult.agentDecision.recommendedActions.map(action => <li key={action} className="flex gap-2"><span className="text-primary-600">•</span>{action}</li>)}</ul></div>}
+                   </div>}
+                    {aiResult.agent?.generatedDescription && <details open className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+                      <summary className="cursor-pointer font-semibold text-violet-900">Agent-generated complaint description ({aiResult.agent.descriptionWordCount || 0} words)</summary>
+                      <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">{aiResult.agent.generatedDescription}</p>
+                    </details>}
+                    {aiResult.duplicates > 0 && (
+                     <div className="flex items-start gap-2.5 text-amber-800 bg-amber-50 p-3.5 rounded-xl text-sm">
+                       <Icon name="alert-circle" size={18} className="mt-0.5 shrink-0" />
+                       <span>{aiResult.duplicates} {t.similarComplaints}</span>
+                     </div>
+                   )}
+                    {aiResult.agent && (
+                     <div className="rounded-2xl bg-primary-50 border border-primary-100 p-4">
+                       <div className="flex items-center justify-between gap-3">
+                         <h4 className="font-semibold text-primary-900 flex items-center gap-2"><Icon name="bot" size={18} /> Response Agent plan</h4>
+                         <span className="text-xs font-semibold text-primary-700">{Math.round((aiResult.agent.confidence || 0) * 100)}% confidence</span>
+                       </div>
+                        <p className="text-sm text-primary-800 mt-2">{aiResult.agent.summary}</p>
+                        <p className="text-sm text-slate-700 mt-2"><strong>Citizen explanation:</strong> {aiResult.agent.citizenMessage}</p>
+                        <p className="text-sm text-slate-700 mt-2"><strong>Next action:</strong> {aiResult.agent.trace?.[3]?.detail || aiResult.agent.nextAction}</p>
+                       {!!aiResult.agent.subAgents?.length && <p className="text-xs text-slate-500 mt-3">Orchestrated by {aiResult.agent.subAgents.length} specialist agents: {aiResult.agent.subAgents.map(item => item.name).join(' · ')}</p>}
+                       {aiResult.agent.decisionMode && <p className="text-xs text-slate-500 mt-2">Decision mode: <strong>{aiResult.agent.decisionMode}</strong> · {aiResult.agent.executionPlan?.length || 0} tools executed</p>}
+                       {aiResult.agent.followUp?.nextCheckAt && <p className="text-xs text-slate-500 mt-3">Agent follow-up check: {new Date(aiResult.agent.followUp.nextCheckAt).toLocaleString()}</p>}
+                       {!!aiResult.agent.safeguards?.length && <p className="text-xs text-slate-500 mt-3">Human-in-the-loop: {aiResult.agent.safeguards[0]}</p>}
+                      </div>
+                    )}
+                    {aiResult.workOrder?.tasks?.length > 0 && <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/60 p-4"><div className="flex items-center justify-between gap-3"><h4 className="font-semibold text-amber-900 flex items-center gap-2"><Icon name="clipboard-check" size={17} /> Work order created</h4><span className="text-xs font-semibold text-amber-700">{aiResult.workOrder.tasks.length} tasks</span></div><p className="text-sm text-slate-700 mt-2">Officials can now claim this case and execute the checklist.</p></div>}
                   </div>
-                  {aiResult.duplicates > 0 && (
-                    <div className="flex items-start gap-2.5 text-amber-800 bg-amber-50 p-3.5 rounded-xl text-sm">
-                      <Icon name="alert-circle" size={18} className="mt-0.5 shrink-0" />
-                      <span>{aiResult.duplicates} {t.similarComplaints}</span>
-                    </div>
-                  )}
-                </div>
               )}
-              <button onClick={() => { setSuccess(null); setAiResult(null); setSubmitError(''); setForm({ category: '', description: '', location: '', urgency: 'medium', name: user?.name || '', phone: user?.phone || '' }); setImagePreview(null); }}
+                <button onClick={() => { setSuccess(null); setAiResult(null); setAgentPreview(null); setSubmitError(''); setLocationMessage(''); setCoordinates(user?.coordinates || null); setForm({ category: '', description: '', location: '', urgency: 'medium', name: user?.name || '', phone: user?.phone || '' }); setImagePreview(null); }}
                 className="mt-8 text-primary-600 font-semibold hover:text-primary-700 hover:underline">
                 {t.fileAnother}
               </button>
             </div>
+          </div>
+        );
+      }
+
+      if (user?.role === 'citizen') {
+        return (
+          <div className="max-w-2xl mx-auto px-4 py-10 animate-fade-in">
+            <div className="mb-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-700"><Icon name="bot" size={24} /></div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-600">Civic AI Agent</p>
+                  <h1 className="text-3xl font-bold text-slate-900">File a photo complaint</h1>
+                </div>
+              </div>
+               <p className="mt-3 text-slate-600">Upload one photo and enter where the issue is happening. The agent will identify the civic problem, prioritize it, check duplicates and send it to the responsible government official queue.</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-100 bg-white p-6 shadow-soft sm:p-8">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                   ['map-pin', 'Location provided by you'],
+                  ['scan-search', 'Problem classified by agent'],
+                  ['send', 'Routed to government official'],
+                ].map(([icon, label]) => <div key={label} className="rounded-2xl bg-slate-50 p-4 text-center"><Icon name={icon} size={20} className="mx-auto text-primary-600" /><span className="mt-2 block text-xs font-semibold leading-relaxed text-slate-600">{label}</span></div>)}
+              </div>
+
+              <div className="mt-6 rounded-2xl border-2 border-dashed border-primary-200 bg-primary-50/30 p-6 text-center transition hover:border-primary-400">
+                {imagePreview ? (
+                  <div>
+                    <img src={imagePreview} alt="Complaint evidence preview" className="mx-auto max-h-72 rounded-2xl object-contain shadow-md" />
+                    <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-primary-200 bg-white px-4 py-2.5 text-sm font-semibold text-primary-700 hover:bg-primary-50">
+                        <Icon name="refresh-cw" size={16} /> Choose another photo
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImage} />
+                      </label>
+                      <button type="button" onClick={() => { setImagePreview(null); setSubmitError(''); setLocationMessage(''); }} className="text-sm font-semibold text-slate-500 hover:text-red-600">Remove photo</button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer flex-col items-center gap-3 py-8">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-primary-600 shadow-sm"><Icon name="camera" size={30} /></div>
+                    <span className="text-base font-bold text-slate-800">Upload complaint photo</span>
+                    <span className="text-sm text-slate-500">Take a photo or choose one from your device</span>
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImage} />
+                  </label>
+                )}
+              </div>
+
+               <div className="mt-6">
+                 <label className="mb-2 block text-sm font-semibold text-slate-700">Complaint location <span className="text-red-500">*</span></label>
+                 <div className="relative">
+                   <Icon name="map-pin" size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" value={form.location} onChange={e => { setForm({ ...form, location: e.target.value }); setCoordinates(null); }} placeholder="Street, landmark, ward or area" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 outline-none transition-all focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => captureLocation()} disabled={locationLoading} className="inline-flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3.5 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-60"><Icon name={locationLoading ? 'loader-2' : 'locate-fixed'} size={16} className={locationLoading ? 'animate-spin' : ''} /> {locationLoading ? 'Capturing GPS...' : 'Use my current location'}</button>
+                    {coordinates && <span className="text-xs font-semibold text-emerald-600">GPS location selected.</span>}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Give the nearest landmark or tap “Use my current location”. The agent will use it for department and official routing.</p>
+               </div>
+
+               {locationMessage && <p className="mt-4 flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800"><Icon name={locationLoading ? 'loader-2' : 'map-pin-check'} size={17} className={locationLoading ? 'animate-spin' : ''} /> {locationMessage}</p>}
+              {submitError && <p className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700"><Icon name="alert-circle" size={17} /> {submitError}</p>}
+
+                <button type="submit" disabled={!imagePreview || (!form.location.trim() && !coordinates) || submitting} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary-600 to-primary-700 py-4 font-semibold text-white shadow-lg shadow-primary-500/25 transition hover:from-primary-700 hover:to-primary-800 disabled:cursor-not-allowed disabled:opacity-60">
+                {submitting ? (<><Icon name="loader-2" size={20} className="animate-spin" /> Agent analyzing and submitting...</>) : (<><Icon name="send" size={18} /> Submit photo to Civic AI Agent</>)}
+              </button>
+               <p className="mt-3 text-center text-xs text-slate-500">Your photo and location are sent with the case so the assigned official can verify the issue.</p>
+            </form>
           </div>
         );
       }
@@ -933,8 +1522,8 @@
 
           <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-soft border border-slate-100 p-6 sm:p-8 space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.category}</label>
-              <select required value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.category} <span className="font-normal text-slate-400">(agent detects it)</span></label>
+              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-slate-50 focus:bg-white transition-all">
                 <option value="">{t.selectCategory}</option>
                 {categories[lang].map(c => <option key={c} value={c}>{c}</option>)}
@@ -942,10 +1531,10 @@
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.describeProblem}</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.describeProblem} <span className="font-normal text-slate-400">(optional with photo)</span></label>
               <div className="relative">
-                <textarea required rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                  placeholder={t.describePlaceholder}
+                <textarea rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+                  placeholder="Add text, or upload only a photo and let the agent inspect it..."
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-14 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none bg-slate-50 focus:bg-white transition-all" />
                 <button type="button" onClick={toggleMic} title={isListening ? t.listening : "Speak"}
                   className={`absolute right-3 bottom-3 p-2.5 rounded-full transition-all ${
@@ -963,17 +1552,22 @@
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.location}</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="map-pin" size={18} /></span>
-                <input required type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
-                  placeholder={t.locationPlaceholder}
-                  className="w-full rounded-xl border border-slate-200 pl-11 pr-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white transition-all" />
-              </div>
-            </div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.location} <span className="font-normal text-slate-400">(GPS or landmark)</span></label>
+               <div className="relative">
+                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="map-pin" size={18} /></span>
+                   <input type="text" value={form.location} onChange={e => { setForm({ ...form, location: e.target.value }); setCoordinates(null); }}
+                   placeholder={t.locationPlaceholder}
+                   className="w-full rounded-xl border border-slate-200 pl-11 pr-4 py-3 focus:ring-2 focus:ring-primary-500 outline-none bg-slate-50 focus:bg-white transition-all" />
+               </div>
+               <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={() => captureLocation()} disabled={locationLoading} className="inline-flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3.5 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-60"><Icon name={locationLoading ? 'loader-2' : 'locate-fixed'} size={16} className={locationLoading ? 'animate-spin' : ''} /> {locationLoading ? 'Capturing GPS...' : 'Use my current location'}</button>
+                  {locationMessage && <span className="text-xs text-slate-500">{locationMessage}</span>}
+                 <p className="mt-2 text-xs text-slate-500">Enter a landmark or tap “Use my current location”. The Response Agent sends the selected GPS coordinates for accurate routing.</p>
+               </div>
+             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.photo}</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">{t.photo} <span className="font-normal text-primary-600">(uploading only a photo auto-submits)</span></label>
               <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center hover:border-primary-300 hover:bg-primary-50/30 transition-all">
                 {imagePreview ? (
                   <div className="relative inline-block">
@@ -988,7 +1582,8 @@
                     <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center">
                       <Icon name="camera" size={28} className="text-slate-400" />
                     </div>
-                    <span className="text-sm text-slate-600 font-medium">{t.clickPhoto}</span>
+                     <span className="text-sm text-slate-600 font-medium">{t.clickPhoto}</span>
+                     <span className="text-xs text-slate-400">Photo-only reports are automatically sent to the Civic AI Agent.</span>
                     <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImage} />
                   </label>
                 )}
@@ -1011,6 +1606,31 @@
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-50 to-white p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-primary-800 font-semibold"><span className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center"><Icon name="bot" size={18} /></span> CivicResolve Response Agent</div>
+                  <p className="text-sm text-slate-600 mt-2">Upload only a photo if you prefer. The agent will classify it, summarize it, find duplicates, choose the department/team, score impact and urgency, schedule follow-up and explain the decision.</p>
+                </div>
+                <button type="button" onClick={runAgentPreview} disabled={agentLoading} className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-800 disabled:opacity-60">
+                  <Icon name={agentLoading ? 'loader-2' : 'sparkles'} size={16} className={agentLoading ? 'animate-spin' : ''} /> {agentLoading ? 'Agent thinking...' : 'Run agent triage'}
+                </button>
+              </div>
+              {agentPreview?.decision && (
+                <div className="mt-4 pt-4 border-t border-primary-100 grid sm:grid-cols-2 gap-3 text-sm">
+                  <div className="sm:col-span-2"><span className="text-slate-500 block">Agent summary</span><strong className="text-slate-800">{agentPreview.decision.summary}</strong></div>
+                    <div><span className="text-slate-500 block">AI assistance</span><strong className="text-slate-800">{agentPreview.decision.category}</strong></div>
+                   <div><span className="text-slate-500 block">Department / team</span><strong className="text-slate-800">{agentPreview.decision.department} · {agentPreview.decision.team}</strong></div>
+                   <div><span className="text-slate-500 block">Priority / impact</span><strong className="text-orange-700">{agentPreview.decision.priority} · {agentPreview.decision.impactScore}/100</strong></div>
+                   <div><span className="text-slate-500 block">Duplicate cases / urgency</span><strong className="text-slate-800">{agentPreview.decision.duplicateCount || 0} · {agentPreview.decision.urgency}</strong></div>
+                  <div className="sm:col-span-2"><span className="text-slate-500 block">Recommended next action</span><strong className="text-slate-800">{agentPreview.decision.nextAction}</strong></div>
+                  {!!agentPreview.decision.riskFlags?.length && <div className="sm:col-span-2 text-amber-800 bg-amber-50 rounded-xl px-3 py-2">Risk flags: {agentPreview.decision.riskFlags.join(', ')}</div>}
+                  {!!agentPreview.agent?.subAgents?.length && <div className="sm:col-span-2 text-primary-800 bg-white rounded-xl px-3 py-2 border border-primary-100">Agent team completed: {agentPreview.agent.subAgents.map(item => item.name).join(' · ')}</div>}
+                  {agentPreview.decision?.requiresSupervisorReview && <div className="sm:col-span-2 text-red-800 bg-red-50 rounded-xl px-3 py-2">Human review required: this case has elevated risk or needs supervisor approval.</div>}
+                </div>
+              )}
             </div>
 
             <div className="grid sm:grid-cols-2 gap-5">
@@ -1112,19 +1732,44 @@
               </div>
               <div className="p-6 space-y-6">
                 <p className="text-slate-700 leading-relaxed">{result.summary}</p>
-                <div className="grid sm:grid-cols-2 gap-5 text-sm">
-                  <div className="flex items-start gap-2.5">
-                    <Icon name="map-pin" size={16} className="text-slate-400 mt-0.5" />
-                    <div><div className="text-slate-500 mb-0.5">{t.location}</div><div className="font-medium">{result.location}</div></div>
+                   <div className="grid sm:grid-cols-2 gap-5 text-sm">
+                   <div className="flex items-start gap-2.5">
+                     <Icon name="map-pin" size={16} className="text-slate-400 mt-0.5" />
+                     <div><div className="text-slate-500 mb-0.5">{t.location}</div><div className="font-medium">{result.location}</div><div className="text-slate-500 text-xs mt-1">GPS: {result.coordinates ? `${Number(result.coordinates.latitude).toFixed(6)}, ${Number(result.coordinates.longitude).toFixed(6)}` : 'Captured by agent'}</div></div>
                   </div>
                   <div className="flex items-start gap-2.5">
                     <Icon name="building-2" size={16} className="text-slate-400 mt-0.5" />
                     <div><div className="text-slate-500 mb-0.5">{t.department}</div><div className="font-medium">{result.department}</div><div className="text-slate-500 text-xs mt-0.5">{result.team}</div></div>
                   </div>
                   <div><div className="text-slate-500 mb-0.5">{t.priority}</div><div className="font-medium text-orange-600">{result.priority} (Score: {result.impactScore})</div></div>
-                  <div><div className="text-slate-500 mb-0.5">{t.expectedResolution}</div><div className="font-medium">{result.eta}</div></div>
-                </div>
-                <div>
+                   <div><div className="text-slate-500 mb-0.5">{t.expectedResolution}</div><div className="font-medium">{result.eta}</div></div>
+                 </div>
+                  {result.agent && (
+                   <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-5">
+                     <div className="flex items-center justify-between gap-3">
+                       <h3 className="font-semibold text-primary-900 flex items-center gap-2"><Icon name="bot" size={18} /> Response Agent activity</h3>
+                       <span className="text-xs font-semibold text-primary-700">{Math.round((result.agent.confidence || 0) * 100)}% confidence</span>
+                      </div>
+                      <p className="text-sm text-slate-700 mt-2">{result.agent.summary}</p>
+                      {result.agent.citizenMessage && <p className="text-sm text-slate-700 mt-2"><strong>Resolution explanation:</strong> {result.agent.citizenMessage}</p>}
+                      <div className="mt-4 grid sm:grid-cols-2 gap-2">
+                       {(result.agent.trace || []).map(step => <div key={step.id} className="flex items-start gap-2 text-xs text-slate-600"><Icon name="check-circle-2" size={15} className="text-emerald-600 mt-0.5 shrink-0" /><span><strong className="text-slate-800">{step.title}:</strong> {step.detail}</span></div>)}
+                      </div>
+                    </div>
+                   )}
+                   {result.progressAnalysis && <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+                     <div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-blue-900 flex items-center gap-2"><Icon name="activity" size={18} /> Agent progress analysis</h3><span className="text-sm font-bold text-blue-800">{result.progressPercent || result.progressAnalysis.progressPercent || 0}% solved</span></div>
+                     <p className="text-sm text-blue-900 mt-2">{result.progressAnalysis.summary}</p>
+                     <p className="text-sm text-blue-800 mt-2"><strong>Image evidence:</strong> {result.progressAnalysis.visibleEvidence}</p>
+                     <p className="text-sm text-slate-700 mt-2"><strong>Remaining work:</strong> {result.progressAnalysis.remainingWork}</p>
+                   </div>}
+                   {!!result.resolutionPhotos?.length && <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5"><h3 className="font-semibold text-slate-900 mb-3">Official progress photos</h3><div className="flex flex-wrap gap-3">{result.resolutionPhotos.slice().reverse().slice(0, 4).map((photo, index) => <img key={`${photo.uploadedAt}-${index}`} src={photo.dataUrl} alt="Official progress evidence" className="max-h-40 rounded-xl border border-slate-200 object-contain" />)}</div></div>}
+                   {result.status === 'Resolved' && result.officialNotes?.length > 0 && <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5"><h3 className="font-semibold text-emerald-900 flex items-center gap-2"><Icon name="badge-check" size={18} /> Official resolution explanation</h3><p className="text-sm text-emerald-800 mt-2">{result.officialNotes[result.officialNotes.length - 1].text}</p></div>}
+                  {result.workOrder?.tasks?.length > 0 && <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-5">
+                    <div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-amber-900 flex items-center gap-2"><Icon name="clipboard-check" size={18} /> Response work order</h3><span className="text-xs font-semibold uppercase tracking-wide text-amber-700">{result.workOrder.status}</span></div>
+                    <div className="mt-3 space-y-2">{result.workOrder.tasks.map(task => <div key={task.id} className="flex items-center gap-2 text-sm text-slate-700"><Icon name={task.status === 'completed' ? 'check-circle-2' : 'clock-3'} size={16} className={task.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'} /><span>{task.title}</span></div>)}</div>
+                  </div>}
+                  <div>
                   <h3 className="font-semibold text-slate-900 mb-5">{t.progressTimeline}</h3>
                   <div className="space-y-0">
                     {result.timeline.map((item, i) => (
@@ -1151,11 +1796,526 @@
       );
     }
 
+    function OfficialAssistanceChat({ onOpenCase }) {
+      const [messages, setMessages] = useState([
+        { role: 'assistant', text: 'Hello. I am your Government Operations AI Assistance Agent. Ask me about priority, SLA delays, recurring area problems, worker capacity, resources, or a complaint ID.' },
+      ]);
+      const [input, setInput] = useState('');
+      const [sending, setSending] = useState(false);
+
+      const ask = async (question = input) => {
+        const text = String(question || '').trim();
+        if (!text || sending) return;
+        setMessages(previous => [...previous, { role: 'user', text }]);
+        setInput('');
+        setSending(true);
+        try {
+          const response = await apiRequest('/official/assistant', {
+            method: 'POST',
+            body: JSON.stringify({ message: text }),
+          });
+          const reply = response.reply || 'I could not prepare an answer right now.';
+          const caseIds = [...new Set((reply.match(/CR-\d{6}/gi) || []).map(id => id.toUpperCase()))];
+          setMessages(previous => [...previous, { role: 'assistant', text: reply, caseIds }]);
+        } catch (error) {
+          setMessages(previous => [...previous, { role: 'assistant', text: `I could not access the official queue: ${error.message}` }]);
+        } finally {
+          setSending(false);
+        }
+      };
+
+      return (
+        <section className="mb-8 rounded-3xl border border-primary-100 bg-primary-50/50 p-5 shadow-soft sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-primary-700"><Icon name="bot" size={22} /></div>
+            <div><h2 className="font-bold text-slate-900">Government Official AI Assistance</h2><p className="mt-1 text-sm text-slate-600">Ask about your visible queue, similar complaints, delayed cases and next actions.</p></div>
+          </div>
+          <div className="mt-4 max-h-56 space-y-3 overflow-y-auto rounded-2xl bg-white p-3">
+            {messages.map((item, index) => <div key={`${item.role}-${index}`} className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[90%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm leading-relaxed ${item.role === 'user' ? 'bg-primary-700 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}><div>{item.text}</div>{item.caseIds?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{item.caseIds.map(caseId => <button type="button" key={caseId} onClick={() => onOpenCase?.(caseId)} className="rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 font-mono text-xs font-bold text-primary-700 hover:bg-primary-50">Open {caseId}</button>)}</div>}</div></div>)}
+            {sending && <div className="flex items-center gap-2 text-xs text-slate-500"><Icon name="loader-2" size={14} className="animate-spin" /> Checking case records...</div>}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {['Show high-priority cases', 'Which complaints are overdue?', 'What problems repeat by area?', 'How many workers are available?'].map(question => <button key={question} type="button" onClick={() => ask(question)} disabled={sending} className="rounded-full border border-primary-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-50">{question}</button>)}
+          </div>
+          <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2">
+            <input value={input} onChange={event => setInput(event.target.value)} disabled={sending} placeholder="Ask about cases..." className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+            <button type="submit" disabled={!input.trim() || sending} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-700 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-800 disabled:opacity-50"><Icon name="send" size={16} /> Ask</button>
+          </form>
+        </section>
+      );
+    }
+
+    function AdminAssistanceChat() {
+      const [messages, setMessages] = useState([
+        { role: 'assistant', text: 'Hello. I am the Civic Administration AI Agent. Ask me about city-wide case counts, departments, recurring issues, similar cases or delays.' },
+      ]);
+      const [input, setInput] = useState('');
+      const [sending, setSending] = useState(false);
+
+      const ask = async (question = input) => {
+        const text = String(question || '').trim();
+        if (!text || sending) return;
+        setMessages(previous => [...previous, { role: 'user', text }]);
+        setInput('');
+        setSending(true);
+        try {
+          const response = await apiRequest('/admin/assistant', { method: 'POST', body: JSON.stringify({ message: text }) });
+          setMessages(previous => [...previous, { role: 'assistant', text: response.reply || 'I could not prepare an answer right now.' }]);
+        } catch (error) {
+          setMessages(previous => [...previous, { role: 'assistant', text: `I could not access city records: ${error.message}` }]);
+        } finally {
+          setSending(false);
+        }
+      };
+
+      return (
+        <section className="mb-8 rounded-3xl border border-violet-100 bg-violet-50/60 p-5 shadow-soft sm:p-6">
+          <div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-violet-700"><Icon name="bot" size={22} /></div><div><h2 className="font-bold text-slate-900">Civic Administration AI Agent</h2><p className="mt-1 text-sm text-slate-600">Ask the agent to explain city-wide trends, department workloads and delayed cases.</p></div></div>
+          <div className="mt-4 max-h-56 space-y-3 overflow-y-auto rounded-2xl bg-white p-3">{messages.map((item, index) => <div key={`${item.role}-${index}`} className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[90%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm leading-relaxed ${item.role === 'user' ? 'bg-violet-700 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}>{item.text}</div></div>)}{sending && <div className="flex items-center gap-2 text-xs text-slate-500"><Icon name="loader-2" size={14} className="animate-spin" /> Analyzing city records...</div>}</div>
+          <div className="mt-3 flex flex-wrap gap-2">{['How many cases are filed?', 'Which departments have most cases?', 'Which cases are delayed?'].map(question => <button key={question} type="button" onClick={() => ask(question)} disabled={sending} className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50">{question}</button>)}</div>
+          <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input value={input} onChange={event => setInput(event.target.value)} disabled={sending} placeholder="Ask about city cases..." className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500" /><button type="submit" disabled={!input.trim() || sending} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"><Icon name="send" size={16} /> Ask</button></form>
+        </section>
+      );
+    }
+
+    // ========== OFFICIAL CASE DASHBOARD ==========
+    function OfficialDashboard({ lang, user }) {
+      const [cases, setCases] = useState([]);
+      const [intelligence, setIntelligence] = useState(null);
+      const [officialProfile, setOfficialProfile] = useState({ availableWorkers: '', resources: '' });
+      const [selectedId, setSelectedId] = useState('');
+      const [statusValue, setStatusValue] = useState('Received');
+      const [note, setNote] = useState('');
+      const [photoDataUrl, setPhotoDataUrl] = useState('');
+      const [loading, setLoading] = useState(true);
+      const [actionLoading, setActionLoading] = useState('');
+      const [resourceSaving, setResourceSaving] = useState(false);
+      const [resourceMessage, setResourceMessage] = useState('');
+      const [error, setError] = useState('');
+
+      const selectedCase = cases.find(item => item.id === selectedId) || null;
+      const assignedCases = cases.filter(item => item.assignedTo?.email === user.email);
+      const availableCases = cases.filter(item => !item.assignedTo);
+      const openCases = assignedCases.filter(item => item.status !== 'Resolved').length;
+      const resolvedCases = assignedCases.filter(item => item.status === 'Resolved').length;
+      const escalatedCases = assignedCases.filter(item => item.status === 'Escalated').length;
+      const intelligenceCounts = intelligence?.counts || {};
+      const intelligenceHighPriority = intelligence?.highPriorityCases || [];
+      const intelligencePending = intelligence?.pendingCases || [];
+      const intelligenceOverdue = intelligence?.overdueCases || [];
+      const intelligenceDuplicates = intelligence?.duplicateCases || [];
+      const intelligenceRecurring = intelligence?.recurringProblems || [];
+      const intelligenceAssignments = intelligence?.assignmentRecommendations || [];
+
+      const loadCases = async () => {
+        setError('');
+        try {
+          const [recordsResponse, intelligenceResponse, profileResponse] = await Promise.all([
+            apiRequest('/official/complaints'),
+            apiRequest('/official/intelligence'),
+            apiRequest('/official/profile'),
+          ]);
+          const records = recordsResponse || [];
+          setCases(records);
+          setIntelligence(intelligenceResponse || null);
+          setOfficialProfile({
+            ...(profileResponse || {}),
+            availableWorkers: profileResponse?.availableWorkers ?? '',
+            resources: profileResponse?.resources || '',
+          });
+          setSelectedId(current => current && records.some(item => item.id === current) ? current : (records[0]?.id || ''));
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => { loadCases(); }, []);
+
+      useEffect(() => {
+        if (selectedCase) {
+          setStatusValue(selectedCase.status || 'Received');
+          setNote('');
+          setPhotoDataUrl('');
+        }
+      }, [selectedId]);
+
+      const selectCase = (id) => {
+        setSelectedId(id);
+        setError('');
+        window.setTimeout(() => document.getElementById('official-case-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      };
+
+      const saveResources = async (event) => {
+        event.preventDefault();
+        setResourceSaving(true);
+        setResourceMessage('');
+        setError('');
+        try {
+          const updatedProfile = await apiRequest('/official/profile/resources', {
+            method: 'PATCH',
+            body: JSON.stringify({
+              availableWorkers: officialProfile.availableWorkers === '' ? null : Number(officialProfile.availableWorkers),
+              resources: officialProfile.resources,
+            }),
+          });
+          setOfficialProfile({
+            ...(updatedProfile || {}),
+            availableWorkers: updatedProfile?.availableWorkers ?? '',
+            resources: updatedProfile?.resources || '',
+          });
+          setResourceMessage('Workforce and resources updated for the Operations Agent.');
+          setIntelligence(await apiRequest('/official/intelligence'));
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setResourceSaving(false);
+        }
+      };
+
+      const handlePhoto = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) {
+          setError('Please choose a resolution photo under 4 MB.');
+          event.target.value = '';
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => setPhotoDataUrl(String(reader.result || ''));
+        reader.readAsDataURL(file);
+      };
+
+      const replaceCase = (updatedCase) => {
+        setCases(current => current.map(item => item.id === updatedCase.id ? updatedCase : item));
+        apiRequest('/official/intelligence').then(setIntelligence).catch(() => {});
+      };
+
+      const claimCase = async () => {
+        if (!selectedCase) return;
+        setActionLoading('claim');
+        setError('');
+        try {
+          const updatedCase = await apiRequest(`/official/complaints/${selectedCase.id}/claim`, { method: 'POST' });
+          replaceCase(updatedCase);
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setActionLoading('');
+        }
+      };
+
+      const replanCase = async () => {
+        if (!selectedCase) return;
+        const reason = window.prompt('Why should the agent re-plan this case?', 'New information needs a fresh routing and priority review.');
+        if (reason === null) return;
+        setActionLoading('replan');
+        setError('');
+        try {
+          const updatedCase = await apiRequest(`/official/complaints/${selectedCase.id}/replan`, {
+            method: 'POST',
+            body: JSON.stringify({ reason }),
+          });
+          replaceCase(updatedCase);
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setActionLoading('');
+        }
+      };
+
+      const updateTask = async (taskId, taskStatus) => {
+        if (!selectedCase) return;
+        setActionLoading(`task-${taskId}`);
+        setError('');
+        try {
+          const updatedCase = await apiRequest(`/official/complaints/${selectedCase.id}/tasks/${taskId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: taskStatus }),
+          });
+          replaceCase(updatedCase);
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setActionLoading('');
+        }
+      };
+
+      const saveCase = async (event) => {
+        event.preventDefault();
+        if (!selectedCase || selectedCase.assignedTo?.email !== user.email) return;
+        setActionLoading('save');
+        setError('');
+        try {
+          const updatedCase = await apiRequest(`/official/complaints/${selectedCase.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: statusValue, note, resolutionPhotoDataUrl: photoDataUrl }),
+          });
+          replaceCase(updatedCase);
+          setNote('');
+          setPhotoDataUrl('');
+        } catch (requestError) {
+          setError(requestError.message);
+        } finally {
+          setActionLoading('');
+        }
+      };
+
+      const formatDate = (value) => value ? new Date(value).toLocaleString() : '—';
+      const priorityStyle = (item) => item.impactScore > 90
+        ? 'bg-red-50 text-red-700'
+        : item.impactScore > 70 ? 'bg-orange-50 text-orange-700' : 'bg-slate-100 text-slate-700';
+      const isAssignedToMe = selectedCase?.assignedTo?.email === user.email;
+      const timeline = selectedCase?.timeline || [];
+
+      return (
+        <div className="max-w-7xl mx-auto px-4 py-10 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Official Case Dashboard</h1>
+              <p className="text-slate-600 mt-1">Review assigned complaints, update progress, and document resolutions.</p>
+              {user.department && <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1.5 text-sm font-semibold text-primary-700"><Icon name="building-2" size={15} /> {user.department}</p>}
+            </div>
+            <button type="button" onClick={loadCases} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <Icon name="refresh-cw" size={16} /> Refresh cases
+            </button>
+          </div>
+
+          {error && <div className="mb-6 rounded-2xl bg-red-50 border border-red-100 px-5 py-4 text-sm text-red-700">{error}</div>}
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+            {[
+              { label: 'Assigned open', value: openCases, icon: 'clock-3', color: 'bg-blue-50 text-blue-600' },
+              { label: 'Available to claim', value: availableCases.length, icon: 'inbox', color: 'bg-amber-50 text-amber-600' },
+              { label: 'Escalated', value: escalatedCases, icon: 'alert-triangle', color: 'bg-red-50 text-red-600' },
+              { label: 'Resolved', value: resolvedCases, icon: 'check-circle-2', color: 'bg-emerald-50 text-emerald-600' },
+            ].map(item => (
+              <div key={item.label} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-soft">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${item.color}`}><Icon name={item.icon} size={22} /></div>
+                <div className="mt-4 text-2xl font-bold text-slate-900">{item.value}</div>
+                <div className="text-sm text-slate-500 font-medium mt-0.5">{item.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <section className="mb-8 rounded-3xl border border-primary-100 bg-primary-50/40 p-5 shadow-soft sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 font-bold text-slate-900"><Icon name="brain-circuit" size={20} className="text-primary-700" /> Official-side agent intelligence</h2>
+                <p className="mt-1 text-sm text-slate-600">The Operations Agent continuously analyzes your department queue, SLA timing, duplicates, workload and location patterns.</p>
+              </div>
+              {intelligence?.generatedAt && <span className="text-xs text-slate-500">Updated {formatDate(intelligence.generatedAt)}</span>}
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+              {[
+                { label: 'High priority', value: intelligenceCounts.highPriority ?? 0, icon: 'flame', color: 'bg-red-50 text-red-700' },
+                { label: 'Pending / active', value: intelligenceCounts.pending ?? 0, icon: 'loader-circle', color: 'bg-blue-50 text-blue-700' },
+                { label: 'Overdue / SLA', value: intelligenceCounts.overdue ?? 0, icon: 'alarm-clock', color: 'bg-orange-50 text-orange-700' },
+                { label: 'Possible duplicates', value: intelligenceCounts.duplicates ?? 0, icon: 'copy', color: 'bg-violet-50 text-violet-700' },
+                { label: 'Recurring areas', value: intelligenceCounts.recurringLocations ?? 0, icon: 'map-pinned', color: 'bg-emerald-50 text-emerald-700' },
+              ].map(item => <div key={item.label} className="rounded-2xl border border-white bg-white p-4"><div className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><Icon name={item.icon} size={18} /></div><div className="mt-3 text-xl font-bold text-slate-900">{item.value}</div><div className="mt-0.5 text-xs font-medium text-slate-500">{item.label}</div></div>)}
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white bg-white p-5">
+                <h3 className="flex items-center gap-2 font-semibold text-slate-900"><Icon name="list-checks" size={18} className="text-primary-600" /> Agent action queue</h3>
+                <div className="mt-3 space-y-2">
+                  {intelligenceHighPriority.slice(0, 4).map(item => <button type="button" key={`priority-${item.id}`} onClick={() => selectCase(item.id)} className="w-full rounded-xl border border-red-100 bg-red-50/60 px-3 py-2.5 text-left hover:bg-red-50"><div className="flex items-center justify-between gap-2"><span className="font-mono text-xs font-bold text-red-700">{item.id}</span><span className="text-[11px] font-semibold text-red-700">{item.priority} · {item.impactScore}/100</span></div><p className="mt-1 text-sm font-medium text-slate-800">{item.category} · {item.location}</p></button>)}
+                  {intelligenceOverdue.slice(0, 4).map(item => <button type="button" key={`overdue-${item.id}`} onClick={() => selectCase(item.id)} className="w-full rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2.5 text-left hover:bg-orange-50"><div className="flex items-center justify-between gap-2"><span className="font-mono text-xs font-bold text-orange-700">{item.id}</span><span className="text-[11px] font-semibold text-orange-700">{item.overdueBy || 'SLA overdue'}</span></div><p className="mt-1 text-sm font-medium text-slate-800">{item.category} · {item.location}</p><p className="mt-1 text-xs text-orange-800">Escalation and supervisor review recommended.</p></button>)}
+                  {!intelligenceHighPriority.length && !intelligenceOverdue.length && <p className="text-sm text-slate-500">No urgent or overdue action is currently detected.</p>}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-blue-50/70 p-3"><h4 className="text-xs font-bold uppercase tracking-wide text-blue-800">Pending review</h4><div className="mt-2 space-y-1.5">{intelligencePending.slice(0, 3).map(item => <button type="button" key={`pending-${item.id}`} onClick={() => selectCase(item.id)} className="block w-full truncate text-left font-mono text-xs font-semibold text-blue-700 hover:underline">{item.id} · {item.status}</button>)}{!intelligencePending.length && <p className="text-xs text-blue-700">No pending cases.</p>}</div></div>
+                  <div className="rounded-xl bg-violet-50/70 p-3"><h4 className="text-xs font-bold uppercase tracking-wide text-violet-800">Duplicate review</h4><div className="mt-2 space-y-1.5">{intelligenceDuplicates.slice(0, 3).map(item => <button type="button" key={`duplicate-${item.id}`} onClick={() => selectCase(item.id)} className="block w-full truncate text-left font-mono text-xs font-semibold text-violet-700 hover:underline">{item.id} · {item.duplicates} similar</button>)}{!intelligenceDuplicates.length && <p className="text-xs text-violet-700">No duplicate candidates.</p>}</div></div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white bg-white p-5">
+                <h3 className="flex items-center gap-2 font-semibold text-slate-900"><Icon name="route" size={18} className="text-primary-600" /> Assignment and recurring-problem recommendations</h3>
+                <div className="mt-3 space-y-3">
+                  {intelligenceAssignments.slice(0, 3).map(item => <button type="button" key={`assignment-${item.id}`} onClick={() => selectCase(item.id)} className="w-full rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5 text-left hover:bg-amber-50"><span className="font-mono text-xs font-bold text-amber-800">{item.id}</span><p className="mt-1 text-sm text-slate-700">{item.recommendation}</p></button>)}
+                  {intelligenceRecurring.slice(0, 3).map(item => <div key={`recurring-${item.category}-${item.location}`} className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2.5"><p className="text-sm font-semibold text-emerald-900">{item.count} {item.category} reports · {item.location}</p><p className="mt-1 text-xs leading-relaxed text-emerald-800">{item.open} remain open. {item.recommendation}</p></div>)}
+                  {!intelligenceAssignments.length && !intelligenceRecurring.length && <p className="text-sm text-slate-500">No unassigned cases or repeated location pattern detected.</p>}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-2xl border border-white bg-white p-5">
+                <h3 className="flex items-center gap-2 font-semibold text-slate-900"><Icon name="map" size={18} className="text-primary-600" /> Area analysis · last 30 days</h3>
+                <div className="mt-3 space-y-2">
+                  {(intelligence?.areaAnalysis || []).slice(0, 5).map(item => <div key={`area-${item.category}-${item.location}`} className="flex flex-col gap-1 rounded-xl bg-slate-50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-slate-800">{item.location}</p><p className="text-xs text-slate-500">{item.category} · {item.open} open</p></div><span className="text-xs font-semibold text-primary-700">{item.statement}</span></div>)}
+                  {!intelligence?.areaAnalysis?.length && <p className="text-sm text-slate-500">The agent needs recent cases to identify area hotspots.</p>}
+                </div>
+              </div>
+
+              <form onSubmit={saveResources} className="rounded-2xl border border-white bg-white p-5">
+                <h3 className="flex items-center gap-2 font-semibold text-slate-900"><Icon name="users-round" size={18} className="text-primary-600" /> Team capacity for the agent</h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">Give the Operations Agent your available workers and resources so it can recommend realistic assignments.</p>
+                <label className="mt-4 block text-xs font-semibold text-slate-600">Available workers</label>
+                <input type="number" min="0" max="100000" value={officialProfile.availableWorkers} onChange={event => setOfficialProfile(current => ({ ...current, availableWorkers: event.target.value }))} placeholder="e.g. 8" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                <label className="mt-3 block text-xs font-semibold text-slate-600">Resources / equipment</label>
+                <input value={officialProfile.resources} onChange={event => setOfficialProfile(current => ({ ...current, resources: event.target.value }))} placeholder="e.g. 2 trucks, asphalt, pumps" maxLength={1000} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500" />
+                <button type="submit" disabled={resourceSaving} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-800 disabled:opacity-60"><Icon name={resourceSaving ? 'loader-2' : 'save'} size={16} className={resourceSaving ? 'animate-spin' : ''} /> {resourceSaving ? 'Updating agent...' : 'Update agent context'}</button>
+                {resourceMessage && <p className="mt-2 text-xs font-medium text-emerald-700">{resourceMessage}</p>}
+                {intelligence?.capacity?.status && <p className="mt-2 text-xs leading-relaxed text-slate-500">Agent assessment: {intelligence.capacity.status}</p>}
+              </form>
+            </div>
+
+            {!!intelligence?.departmentSummary?.length && <div className="mt-4 rounded-2xl border border-white bg-white p-5"><h3 className="flex items-center gap-2 font-semibold text-slate-900"><Icon name="building-2" size={18} className="text-primary-600" /> Department workload snapshot</h3><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{intelligence.departmentSummary.map(item => <div key={item.department} className="rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-sm font-semibold text-slate-800">{item.department}</p><p className="mt-1 text-xs text-slate-500">{item.open} open · {item.highPriority} high priority · {item.overdue} overdue</p></div>)}</div></div>}
+          </section>
+
+          <OfficialAssistanceChat onOpenCase={selectCase} />
+
+          <div className="grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.45fr)] gap-6">
+            <section id="official-case-detail" className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="font-bold text-slate-900">Case queue</h2>
+                  <p className="text-xs text-slate-500 mt-1">{cases.length} case{cases.length === 1 ? '' : 's'} visible to you</p>
+                </div>
+                <Icon name="clipboard-list" size={20} className="text-primary-600" />
+              </div>
+              <div className="max-h-[680px] overflow-y-auto divide-y divide-slate-100">
+                {loading && <div className="px-5 py-8 text-sm text-slate-500">Loading assigned complaints...</div>}
+                {!loading && !cases.length && <div className="px-5 py-10 text-center text-sm text-slate-500">No assigned or available complaints.</div>}
+                {cases.map(item => (
+                  <button type="button" key={item.id} onClick={() => selectCase(item.id)} className={`w-full text-left px-5 py-4 hover:bg-slate-50 transition-colors ${selectedId === item.id ? 'bg-primary-50/70 border-l-4 border-primary-600' : 'border-l-4 border-transparent'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-mono text-sm font-bold text-primary-700">{item.id}</div>
+                        <div className="font-semibold text-slate-900 mt-1 line-clamp-1">{item.category}</div>
+                      </div>
+                      <span className={`shrink-0 px-2 py-1 rounded-full text-[11px] font-semibold ${item.assignedTo?.email === user.email ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {item.assignedTo?.email === user.email ? 'Assigned' : 'Available'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-2 flex items-center gap-1.5"><Icon name="map-pin" size={13} /> {item.location}</div>
+                    <div className="flex items-center justify-between gap-3 mt-3">
+                      <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${priorityStyle(item)}`}>{item.priority || 'Priority pending'} ({item.impactScore ?? '—'})</span>
+                      <span className="text-xs text-slate-400">{formatDate(item.updatedAt)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden">
+              {!selectedCase ? (
+                <div className="p-12 text-center text-slate-500">Select a complaint to view its details.</div>
+              ) : (
+                <>
+                  <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div>
+                      <div className="font-mono text-lg font-bold text-primary-700">{selectedCase.id}</div>
+                      <h2 className="text-xl font-bold text-slate-900 mt-1">{selectedCase.category}</h2>
+                      <p className="text-sm text-slate-500 mt-1">Submitted {formatDate(selectedCase.createdAt)}</p>
+                    </div>
+                    <span className="inline-flex items-center self-start gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold"><Icon name="clock" size={15} /> {selectedCase.status}</span>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                      <div><span className="block text-slate-500 mb-1">Location</span><strong className="text-slate-800">{selectedCase.location}</strong>{(selectedCase.coordinates || selectedCase.reporter?.coordinates) && <span className="mt-1 block text-xs text-slate-500">GPS: {Number((selectedCase.coordinates || selectedCase.reporter.coordinates).latitude).toFixed(6)}, {Number((selectedCase.coordinates || selectedCase.reporter.coordinates).longitude).toFixed(6)}</span>}</div>
+                      <div><span className="block text-slate-500 mb-1">Department</span><strong className="text-slate-800">{selectedCase.department}</strong></div>
+                      <div><span className="block text-slate-500 mb-1">Priority</span><strong className="text-orange-600">{selectedCase.priority} ({selectedCase.impactScore}/100)</strong></div>
+                      <div><span className="block text-slate-500 mb-1">Assigned to</span><strong className="text-slate-800">{selectedCase.assignedTo?.name || 'Not assigned'}</strong></div>
+                      <div><span className="block text-slate-500 mb-1">Urgency / duplicate cases</span><strong className="text-slate-800">{selectedCase.urgency || 'medium'} · {selectedCase.duplicates || 0} similar found</strong></div>
+                      <div><span className="block text-slate-500 mb-1">Agent progress / ETA</span><strong className="text-slate-800">{selectedCase.status === 'Resolved' ? 100 : selectedCase.progressPercent || 0}% solved</strong><span className="mt-1 block text-xs text-slate-500">{selectedCase.eta || 'Official review pending'}</span></div>
+                    </div>
+
+                     <div className="rounded-2xl bg-slate-50 border border-slate-100 p-5">
+                       <h3 className="font-semibold text-slate-900 mb-2">Agent brief for government official</h3>
+                       <p className="text-sm text-slate-700 leading-relaxed">{selectedCase.agentOfficialBrief || selectedCase.agent?.officialBrief || selectedCase.description || selectedCase.summary}</p>
+                       <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Citizen report received</p><p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">{selectedCase.description || 'Citizen submitted photo evidence; the agent generated the case description from the image and location.'}</p></div>
+                       {(selectedCase.agentGeneratedDescription || selectedCase.agent?.generatedDescription) && <details className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                         <summary className="cursor-pointer text-sm font-semibold text-primary-700">View full agent description ({selectedCase.agent?.descriptionWordCount || 0} words)</summary>
+                         <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">{selectedCase.agentGeneratedDescription || selectedCase.agent.generatedDescription}</p>
+                       </details>}
+                     </div>
+
+                     {selectedCase.photoDataUrl && <div><h3 className="font-semibold text-slate-900 mb-3">Citizen photo</h3><img src={selectedCase.photoDataUrl} alt="Citizen complaint" className="max-h-64 rounded-2xl border border-slate-200 object-contain" /></div>}
+                    {!!selectedCase.resolutionPhotos?.length && <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5"><h3 className="font-semibold text-emerald-900 mb-3">Official field evidence analyzed by the agent</h3><div className="flex flex-wrap gap-3">{selectedCase.resolutionPhotos.slice().reverse().slice(0, 6).map((photo, index) => <div key={`${photo.uploadedAt}-${index}`}><img src={photo.dataUrl} alt="Official progress evidence" className="max-h-40 rounded-xl border border-emerald-200 bg-white object-contain" /><p className="mt-1 text-[11px] text-emerald-800">Uploaded {formatDate(photo.uploadedAt)}</p></div>)}</div></div>}
+
+                     {selectedCase.agent && <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-5">
+                      <div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-primary-900 flex items-center gap-2"><Icon name="bot" size={18} /> Agent handoff</h3><span className="text-xs font-semibold text-primary-700">{Math.round((selectedCase.agent.confidence || 0) * 100)}% confidence</span></div>
+                      <p className="text-sm text-slate-700 mt-2">{selectedCase.agent.summary}</p>
+                       <p className="text-sm text-slate-700 mt-2"><strong>Recommended next action:</strong> {selectedCase.agent.trace?.[3]?.detail || 'Review and update this case.'}</p>
+                       {!!selectedCase.agent.subAgents?.length && <p className="text-xs text-slate-500 mt-3">Specialist handoff: {selectedCase.agent.subAgents.length} agents completed their tasks.</p>}
+                       {selectedCase.agent.decisionMode && <p className="text-xs text-slate-500 mt-2">Decision mode: <strong>{selectedCase.agent.decisionMode}</strong> · {selectedCase.agent.executionPlan?.length || 0} tools executed.</p>}
+                       {selectedCase.agent.followUp?.nextCheckAt && <p className="text-xs text-slate-500 mt-3">Next agent check: {new Date(selectedCase.agent.followUp.nextCheckAt).toLocaleString()}</p>}
+                       {!!selectedCase.agent.history?.length && <p className="text-xs text-slate-500 mt-2">Decision history: {selectedCase.agent.history.length} previous plan{selectedCase.agent.history.length === 1 ? '' : 's'} retained.</p>}
+                        <button type="button" onClick={replanCase} disabled={actionLoading === 'replan'} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-primary-200 bg-white px-4 py-2.5 text-sm font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-60"><Icon name={actionLoading === 'replan' ? 'loader-2' : 'refresh-cw'} size={16} className={actionLoading === 'replan' ? 'animate-spin' : ''} /> {actionLoading === 'replan' ? 'Re-planning...' : 'Ask agent to re-plan'}</button>
+                       {selectedCase.workOrder?.tasks?.length > 0 && <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+                         <div className="flex items-center justify-between gap-3"><h4 className="font-semibold text-amber-900 flex items-center gap-2"><Icon name="clipboard-check" size={17} /> Work order {selectedCase.workOrder.id}</h4><span className="text-xs font-semibold uppercase tracking-wide text-amber-700">{selectedCase.workOrder.status}</span></div>
+                         <div className="mt-3 space-y-2">{selectedCase.workOrder.tasks.map(task => <div key={task.id} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2"><Icon name={task.status === 'completed' ? 'check-circle-2' : task.status === 'in-progress' ? 'loader-circle' : 'circle'} size={16} className={task.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'} /><span className="text-sm text-slate-700 flex-1">{task.title}</span><select value={task.status} onChange={event => updateTask(task.id, event.target.value)} disabled={actionLoading === `task-${task.id}`} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600"><option value="pending">Pending</option><option value="in-progress">In progress</option><option value="completed">Completed</option></select></div>)}</div>
+                       </div>}
+                     </div>}
+
+                    {selectedCase.progressAnalysis && <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+                      <div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-blue-900 flex items-center gap-2"><Icon name="scan-search" size={18} /> Update analyzed by agent</h3><span className="text-sm font-bold text-blue-800">{selectedCase.progressPercent || selectedCase.progressAnalysis.progressPercent || 0}% solved</span></div>
+                      <p className="text-sm text-blue-900 mt-2">{selectedCase.progressAnalysis.summary}</p>
+                      <p className="text-sm text-blue-800 mt-2"><strong>Image analysis:</strong> {selectedCase.progressAnalysis.visibleEvidence}</p>
+                      <p className="text-sm text-slate-700 mt-2"><strong>Remaining work:</strong> {selectedCase.progressAnalysis.remainingWork}</p>
+                    </div>}
+                    {!!selectedCase.progressUpdates?.length && <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5"><h3 className="font-semibold text-slate-900 mb-3">Agent progress history</h3><div className="space-y-3">{selectedCase.progressUpdates.slice().reverse().slice(0, 5).map((update, index) => <div key={`${update.analyzedAt}-${index}`} className="rounded-xl bg-white px-4 py-3"><div className="flex items-center justify-between gap-3"><strong className="text-sm text-slate-800">{update.status} · {update.progressPercent}% solved</strong><span className="text-xs text-slate-400">{formatDate(update.analyzedAt)}</span></div><p className="mt-1 text-sm text-slate-600">{update.summary}</p>{update.photoAttached && <p className="mt-1 text-xs text-primary-700">Official photo analyzed and stored.</p>}</div>)}</div></div>}
+
+                    {!isAssignedToMe ? (
+                      <div className="rounded-2xl bg-amber-50 border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div><h3 className="font-semibold text-amber-900">This case is available</h3><p className="text-sm text-amber-800 mt-1">Claim it to begin work and update its status.</p></div>
+                        <button type="button" onClick={claimCase} disabled={actionLoading === 'claim'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"><Icon name="hand" size={16} /> {actionLoading === 'claim' ? 'Claiming...' : 'Claim case'}</button>
+                      </div>
+                    ) : (
+                      <>
+                        {selectedCase.assignedTo?.autoAccepted && <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800"><strong>Location auto-accepted:</strong> {selectedCase.assignedTo.matchMethod === 'gps' ? `The agent matched this case to your office GPS (${selectedCase.assignedTo.distanceKm} km away).` : 'The agent matched the citizen-provided location to your registered work location.'}</div>}
+                       <form onSubmit={saveCase} className="rounded-2xl border border-primary-100 bg-primary-50/50 p-5 space-y-4">
+                        <div className="flex items-center gap-2"><Icon name="edit-3" size={19} className="text-primary-600" /><h3 className="font-semibold text-slate-900">Update case</h3></div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
+                          <select value={statusValue} onChange={event => setStatusValue(event.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-primary-500">
+                            {['Assigned', 'In Progress', 'Resolved', 'Escalated'].map(value => <option key={value} value={value}>{value}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                           <label className="block text-sm font-semibold text-slate-700 mb-2">Official note for the agent and citizen</label>
+                          <textarea value={note} onChange={event => setNote(event.target.value)} maxLength={2000} rows={4} placeholder="Describe the work completed, next action, or reason for escalation..." className="w-full rounded-xl border border-slate-200 px-4 py-3 bg-white outline-none resize-none focus:ring-2 focus:ring-primary-500" />
+                          <p className="text-xs text-slate-400 text-right mt-1">{note.length}/2000</p>
+                        </div>
+                        <div>
+                           <label className="block text-sm font-semibold text-slate-700 mb-2">Progress / resolution photo</label>
+                           <p className="mb-2 text-xs text-slate-500">The Response Agent analyzes this image, estimates completion and stores the evidence with the case.</p>
+                          {photoDataUrl ? <div className="relative inline-block"><img src={photoDataUrl} alt="Resolution preview" className="max-h-48 rounded-xl border border-slate-200" /><button type="button" onClick={() => setPhotoDataUrl('')} className="absolute -top-2 -right-2 p-1.5 rounded-full bg-white shadow text-slate-600 hover:text-red-600"><Icon name="x" size={15} /></button></div> : <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-dashed border-primary-300 bg-white px-4 py-3 text-sm font-semibold text-primary-700 hover:bg-primary-50"><Icon name="camera" size={17} /> Upload resolution photo<input type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" /></label>}
+                        </div>
+                        <button type="submit" disabled={actionLoading === 'save'} className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"><Icon name="save" size={17} /> {actionLoading === 'save' ? 'Saving update...' : 'Save update'}</button>
+                       </form>
+                      </>
+                    )}
+
+                    <div>
+                      <h3 className="font-semibold text-slate-900 mb-4">Case timeline</h3>
+                      <div className="space-y-0">
+                        {timeline.slice().reverse().map((item, index) => <div key={`${item.time}-${index}`} className="flex gap-3"><div className="flex flex-col items-center"><div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><Icon name={item.done ? 'check-circle' : 'clock'} size={16} /></div>{index < timeline.length - 1 && <div className="w-0.5 flex-1 min-h-[30px] bg-slate-200" />}</div><div className="pb-5"><div className="font-medium text-slate-800 text-sm">{item.title}</div><div className="text-sm text-slate-500 mt-0.5">{item.desc}</div><div className="text-xs text-slate-400 mt-1">{item.time}</div></div></div>)}
+                      </div>
+                    </div>
+
+                    {!!selectedCase.officialNotes?.length && <div><h3 className="font-semibold text-slate-900 mb-3">Previous official notes</h3><div className="space-y-3">{selectedCase.officialNotes.slice().reverse().map((item, index) => <div key={`${item.createdAt}-${index}`} className="rounded-xl bg-slate-50 border border-slate-100 p-4"><p className="text-sm text-slate-700">{item.text}</p><p className="text-xs text-slate-400 mt-2">{item.author?.name || item.author?.email} · {formatDate(item.createdAt)}</p></div>)}</div></div>}
+                  </div>
+                </>
+              )}
+            </section>
+          </div>
+        </div>
+      );
+    }
+
     // ========== DASHBOARD ==========
     function Dashboard({ lang }) {
       const t = translations[lang];
       const [filter, setFilter] = useState('all');
       const [complaints, setComplaints] = useState([]);
+      const [selectedCase, setSelectedCase] = useState(null);
       const [loading, setLoading] = useState(true);
       const [error, setError] = useState('');
       const fallbackComplaints = [
@@ -1212,7 +2372,7 @@
               { label: t.critical, value: criticalCases, icon: 'alert-triangle', color: 'bg-red-50 text-red-600' },
               { label: t.escalated, value: escalatedCases, icon: 'arrow-up-right', color: 'bg-orange-50 text-orange-600' },
               { label: t.resolvedToday, value: resolvedToday, icon: 'check-circle', color: 'bg-emerald-50 text-emerald-600' },
-            ].map(k => (
+           ].map(k => (
               <div key={k.label} className="card-hover bg-white rounded-2xl border border-slate-100 p-5 shadow-soft">
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${k.color}`}>
                   <Icon name={k.icon} size={22} />
@@ -1220,10 +2380,12 @@
                 <div className="mt-4 text-2xl font-bold text-slate-900">{k.value}</div>
                 <div className="text-sm text-slate-500 font-medium mt-0.5">{k.label}</div>
               </div>
-            ))}
-          </div>
+             ))}
+           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden">
+           <AdminAssistanceChat />
+
+           <div className="bg-white rounded-3xl border border-slate-100 shadow-soft overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50/80 border-b border-slate-100">
@@ -1249,14 +2411,15 @@
                       <td className="px-5 py-4 text-slate-700">{c.status}</td>
                       <td className="px-5 py-4 text-slate-500">{c.age}</td>
                       <td className="px-5 py-4">
-                        <button className="text-primary-600 font-semibold hover:text-primary-700 hover:underline">{t.view}</button>
+                         <button type="button" onClick={() => setSelectedCase(c)} className="text-primary-600 font-semibold hover:text-primary-700 hover:underline">{t.view}</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
+           </div>
+           {selectedCase && <ComplaintDetailCard record={selectedCase} title="Administration case details" onClose={() => setSelectedCase(null)} />}
+         </div>
         </div>
       );
     }
@@ -1264,6 +2427,17 @@
     // ========== ANALYTICS ==========
     function Analytics({ lang }) {
       const t = translations[lang];
+      const [insights, setInsights] = useState(null);
+      const [insightsLoading, setInsightsLoading] = useState(true);
+      const [insightsError, setInsightsError] = useState('');
+      useEffect(() => {
+        let active = true;
+        apiRequest('/agent/insights')
+          .then(data => { if (active) setInsights(data); })
+          .catch(error => { if (active) setInsightsError(error.message); })
+          .finally(() => { if (active) setInsightsLoading(false); });
+        return () => { active = false; };
+      }, []);
       const hotspots = [
         { area: 'Ward 12 – Main Road', count: 28, type: lang === 'te' ? 'రోడ్లు' : lang === 'hi' ? 'सड़क' : 'Roads' },
         { area: 'Sector 7 Market', count: 19, type: lang === 'te' ? 'డ్రైనేజీ' : lang === 'hi' ? 'जल निकासी' : 'Drainage' },
@@ -1278,10 +2452,25 @@
         { name: lang === 'te' ? 'నీటి సరఫరా' : lang === 'hi' ? 'जल आपूर्ति' : 'Water Supply', value: 11, color: 'bg-cyan-500' },
       ];
 
+      const liveCategories = insights?.categoryBreakdown?.length
+        ? insights.categoryBreakdown.map((item, index) => ({ name: item.category, value: insights.totalComplaints ? Math.round((item.count / insights.totalComplaints) * 100) : 0, color: ['bg-blue-500', 'bg-teal-500', 'bg-amber-500', 'bg-purple-500', 'bg-cyan-500'][index % 5] }))
+        : categories;
+      const liveHotspots = insights?.hotspots?.length
+        ? insights.hotspots.map(item => ({ area: item.location, count: item.count, type: item.category }))
+        : hotspots;
+      const recurringCards = insights?.recurringProblems?.length
+        ? insights.recurringProblems.slice(0, 4).map(item => ({ title: `${item.category} · ${item.location}`, text: `${item.count} reports found${item.open ? `, ${item.open} still open` : ''}. ${item.recommendation}` }))
+        : [
+            { title: 'Ward 12 Road Network', text: '28 pothole complaints in 45 days. Recommended: Full resurfacing assessment.' },
+            { title: 'Sector 7 Drainage', text: 'Recurring flooding after moderate rain. Recommended: Capacity upgrade study.' },
+          ];
+
       return (
         <div className="max-w-7xl mx-auto px-4 py-10 animate-fade-in">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">{t.cityAnalyticsTitle}</h1>
           <p className="text-slate-600 mb-8">{t.recurringProblems}</p>
+          {insightsLoading && <div className="mb-6 rounded-2xl bg-blue-50 border border-blue-100 px-5 py-4 text-sm text-blue-700">Response Agent is analyzing live complaint patterns...</div>}
+          {insightsError && <div className="mb-6 rounded-2xl bg-amber-50 border border-amber-100 px-5 py-4 text-sm text-amber-800">Live insights unavailable; showing the demo pattern set.</div>}
 
           <div className="grid lg:grid-cols-3 gap-6 mb-8">
             <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-soft p-6">
@@ -1289,7 +2478,7 @@
                 <Icon name="trending-up" size={20} className="text-primary-600" /> {t.complaintsByCategory}
               </h2>
               <div className="space-y-5">
-                {categories.map(item => (
+                 {liveCategories.map(item => (
                   <div key={item.name}>
                     <div className="flex justify-between text-sm mb-1.5">
                       <span className="font-medium text-slate-700">{item.name}</span>
@@ -1308,7 +2497,7 @@
                 <Icon name="alert-circle" size={20} className="text-orange-500" /> {t.topHotspots}
               </h2>
               <div className="space-y-4">
-                {hotspots.map((h, i) => (
+                 {liveHotspots.map((h, i) => (
                   <div key={h.area} className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600 shrink-0">
                       {i + 1}
@@ -1329,13 +2518,14 @@
             </h2>
             <p className="text-slate-600 text-sm mb-5">{t.recurringDesc}</p>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+              {insights?.recurringProblems?.length ? recurringCards.map((item, index) => <div key={item.title} className={`${index % 2 === 0 ? 'bg-amber-50 border-amber-100 text-amber-900' : 'bg-blue-50 border-blue-100 text-blue-900'} border rounded-2xl p-5`}><div className="font-semibold">{item.title}</div><p className="text-sm mt-1.5 leading-relaxed">{item.text}</p></div>) : null}
+              <div className={`${insights?.recurringProblems?.length ? 'hidden ' : ''}bg-amber-50 border border-amber-100 rounded-2xl p-5`}>
                 <div className="font-semibold text-amber-900">Ward 12 Road Network</div>
                 <p className="text-sm text-amber-800 mt-1.5 leading-relaxed">
                   {lang === 'te' ? '45 రోజుల్లో 28 గుంత ఫిర్యాదులు. సిఫార్సు: పూర్తి రీసర్ఫేసింగ్ అసెస్‌మెంట్.' : lang === 'hi' ? '45 दिनों में 28 गड्ढे की शिकायतें। सुझाव: पूर्ण रिसरफेसिंग मूल्यांकन।' : '28 pothole complaints in 45 days. Recommended: Full resurfacing assessment.'}
                 </p>
               </div>
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+              <div className={`${insights?.recurringProblems?.length ? 'hidden ' : ''}bg-blue-50 border border-blue-100 rounded-2xl p-5`}>
                 <div className="font-semibold text-blue-900">Sector 7 Drainage</div>
                 <p className="text-sm text-blue-800 mt-1.5 leading-relaxed">
                   {lang === 'te' ? 'మధ్యస్థ వర్షం తర్వాత పునరావృత వరదలు. సిఫార్సు: కెపాసిటీ అప్‌గ్రేడ్ స్టడీ.' : lang === 'hi' ? 'मध्यम बारिश के बाद आवर्ती बाढ़। सुझाव: क्षमता उन्नयन अध्ययन।' : 'Recurring flooding after moderate rain. Recommended: Capacity upgrade study.'}
@@ -1413,6 +2603,7 @@
                       <div><span className="block text-slate-500">Name</span><strong>{request.name}</strong></div>
                       <div><span className="block text-slate-500">Email</span><strong>{request.email}</strong></div>
                       <div><span className="block text-slate-500">Phone</span><strong>{request.phone}</strong></div>
+                      <div><span className="block text-slate-500">Department</span><strong>{request.department || 'Not provided'}</strong></div>
                       <div><span className="block text-slate-500">Location</span><strong>{request.location}</strong></div>
                     </div>
                   </div>
@@ -1438,8 +2629,7 @@
       const [page, setPage] = useState('home');
       const [lang, setLang] = useState('en');
       const [authPage, setAuthPage] = useState('login');
-
-      useEffect(() => { if (window.lucide) lucide.createIcons(); });
+      const [signupRole, setSignupRole] = useState('citizen');
 
       const handleLogin = (userData) => {
         window.civicResolveToken = userData.authToken;
@@ -1449,8 +2639,8 @@
 
       if (!user) {
         return authPage === 'signup'
-          ? <Signup onBack={() => setAuthPage('login')} lang={lang} setLang={setLang} />
-          : <Login onLogin={handleLogin} onSignup={() => setAuthPage('signup')} lang={lang} setLang={setLang} />;
+          ? <Signup initialRole={signupRole} onBack={() => setAuthPage('login')} lang={lang} setLang={setLang} />
+          : <Login onLogin={handleLogin} onSignup={(role) => { setSignupRole(role); setAuthPage('signup'); }} lang={lang} setLang={setLang} />;
       }
 
       return (
@@ -1460,7 +2650,7 @@
             {page === 'home' && <Home setPage={setPage} user={user} lang={lang} />}
             {page === 'submit' && <SubmitComplaint lang={lang} user={user} />}
             {page === 'track' && <TrackComplaint lang={lang} />}
-            {page === 'dashboard' && <Dashboard lang={lang} />}
+            {page === 'dashboard' && (user.role === 'official' ? <OfficialDashboard lang={lang} user={user} /> : <Dashboard lang={lang} />)}
             {page === 'analytics' && <Analytics lang={lang} />}
             {page === 'notifications' && user.role === 'admin' && <AdminNotifications />}
           </main>
